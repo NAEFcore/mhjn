@@ -1,0 +1,7 @@
+{
+  "name": "IATPC 문화 & 한국문화저널",
+  "description": "IATPC 문화 글로벌 예술문화 포털 및 독립 연계된 대한민국 문화·예술 전문 신문 한국문화저널",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

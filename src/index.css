@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1e293b;
+    background-color: #f8f9fa;
+  }
+}
+
+.font-serif-kr {
+  font-family: 'Noto Serif KR', 'Nanum Myeongjo', Georgia, serif;
+}
+
+.font-headline {
+  font-family: 'Noto Sans KR', sans-serif;
+  letter-spacing: -0.03em;
+}
+
+/* Custom scrollbar for news ticker & tabs */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Realistic print newspaper styling */
+.newspaper-texture {
+  background-color: #faf9f6;
+  background-image: radial-gradient(#e5e2da 0.75px, transparent 0.75px);
+  background-size: 12px 12px;
+}
