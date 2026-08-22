@@ -63,6 +63,8 @@ export const REPORTERS: Record<string, Reporter> = {
   },
 };
 
+export const REPORTERS_DATA: Reporter[] = Object.values(REPORTERS);
+
 export const INITIAL_ARTICLES: Article[] = [
   {
     id: 'art-001',
@@ -396,6 +398,114 @@ export const INITIAL_ARTICLES: Article[] = [
     badge: '기획',
     commentsCount: 45,
   },
+  {
+    id: 'art-009',
+    category: 'global_news',
+    categoryLabel: 'Global News',
+    categoryLabelEn: 'Global News',
+    subCategory: 'World Culture & Heritage',
+    title: '[Global News] New York Metropolitan Museum Unveils Permanent Korean Art Wing Expansion',
+    titleEn: '[Global News] New York Metropolitan Museum Unveils Permanent Korean Art Wing Expansion',
+    subtitle: 'Over 120 masterpieces of Goryeo Celadon and Joseon royal archives presented in newly renovated gallery',
+    subtitleEn: 'Over 120 masterpieces of Goryeo Celadon and Joseon royal archives presented in newly renovated gallery',
+    summary: 'The Metropolitan Museum of Art in New York has officially reopened its expanded Korean Art Wing, marking a major milestone for Korean cultural heritage abroad.',
+    summaryEn: 'The Metropolitan Museum of Art in New York has officially reopened its expanded Korean Art Wing, marking a major milestone for Korean cultural heritage abroad.',
+    content: `NEW YORK — The Metropolitan Museum of Art officially opened its newly expanded Arts of Korea gallery today, showcasing more than 120 masterworks spanning from the Three Kingdoms period to contemporary art.
+
+The expansion, supported by the Ministry of Culture, Sports and Tourism of Korea and the Korea Foundation, triples the exhibition area and features an interactive digital pavilion recreating Changdeokgung Palace.
+
+Curators highlighted the 14th-century Goryeo Buddhist painting 'Water-Moon Avalokiteshvara' and an exquisite 18th-century Moon Jar as the centerpiece exhibits. Over 50,000 visitors are expected in the opening month, underscoring the explosive global interest in authentic Korean heritage alongside K-Pop and cinema.`,
+    contentEn: `NEW YORK — The Metropolitan Museum of Art officially opened its newly expanded Arts of Korea gallery today, showcasing more than 120 masterworks spanning from the Three Kingdoms period to contemporary art.
+
+The expansion, supported by the Ministry of Culture, Sports and Tourism of Korea and the Korea Foundation, triples the exhibition area and features an interactive digital pavilion recreating Changdeokgung Palace.
+
+Curators highlighted the 14th-century Goryeo Buddhist painting 'Water-Moon Avalokiteshvara' and an exquisite 18th-century Moon Jar as the centerpiece exhibits. Over 50,000 visitors are expected in the opening month, underscoring the explosive global interest in authentic Korean heritage alongside K-Pop and cinema.`,
+    reporter: REPORTERS.choi_jh,
+    publishedAt: '2026.08.21. 07:15',
+    views: 64200,
+    shares: 1540,
+    likes: 2190,
+    reactions: {
+      info: 1420,
+      exciting: 1850,
+      empathy: 1980,
+      analysis: 430,
+      followup: 310,
+    },
+    imageUrl: 'https://images.unsplash.com/photo-1566127444979-b3d2b654e3d7?auto=format&fit=crop&w=1200&q=80',
+    imageCaption: '▲ Visitors exploring the newly opened Korean Art Wing at the Metropolitan Museum of Art.',
+    imageCaptionEn: '▲ Visitors exploring the newly opened Korean Art Wing at the Metropolitan Museum of Art.',
+    tags: ['GlobalNews', 'MetMuseum', 'NewYork', 'KoreanArt', 'GoryeoCeladon', 'Heritage'],
+    tagsEn: ['GlobalNews', 'MetMuseum', 'NewYork', 'KoreanArt', 'GoryeoCeladon', 'Heritage'],
+    sectionPage: 'Global Section',
+    badge: '특파원',
+    commentsCount: 38,
+    aiSummary: [
+      'New York Metropolitan Museum expands its dedicated Arts of Korea gallery threefold',
+      'Showcasing 120 masterworks including Goryeo Celadon and 14th-century Buddhist painting',
+      'Highlights surging international enthusiasm for Korean artistic heritage',
+    ],
+    aiSummaryEn: [
+      'New York Metropolitan Museum expands its dedicated Arts of Korea gallery threefold',
+      'Showcasing 120 masterworks including Goryeo Celadon and 14th-century Buddhist painting',
+      'Highlights surging international enthusiasm for Korean artistic heritage',
+    ],
+  },
+  {
+    id: 'art-010',
+    category: 'un_sdg',
+    categoryLabel: 'UN SDG',
+    categoryLabelEn: 'UN SDG',
+    subCategory: 'Publishers Compact',
+    title: '[UN SDG] 한국문화저널, 유엔 퍼블리셔 콤팩트 서약… "지속가능한 문화생태계 조성 앞장"',
+    titleEn: '[UN SDG] Korea Culture Journal Signs UN Publishers Compact to Champion Sustainable Cultural Ecosystems',
+    subtitle: '기후위기 대응과 문화다양성 옹호… 17개 지속가능발전목표(SDGs) 저널리즘 실천 선언',
+    subtitleEn: 'Championing Climate Action & Cultural Diversity: Declaring 17 Sustainable Goals in Journalism',
+    summary: '한국문화저널이 유엔(UN)의 지속가능발전목표(SDGs)를 지지하고 실천하는 글로벌 퍼블리셔 콤팩트에 공식 서약하며 지속가능 저널리즘의 새 지평을 열었다.',
+    summaryEn: 'Korea Culture Journal officially signed the UN SDG Publishers Compact, committing to climate action, heritage preservation, and diversity in newsroom practices.',
+    content: `한국문화저널이 유엔(UN)이 주도하는 '지속가능발전목표(SDG) 퍼블리셔 콤팩트'에 공식 서약 매체로 참여했다.
+
+유엔 퍼블리셔 콤팩트는 전 세계 출판사와 언론사가 2030년까지 17개 지속가능발전목표(SDGs) 달성을 위해 지속가능성 콘텐츠 보도, 재생용지 사용, 친환경 디지털 뉴스룸 운영, 소외계층 문화 향유권 증진 등을 실천하는 글로벌 언론 서약이다.
+
+한국문화저널 송기송 편집인은 "문화와 예술은 인류가 환경 위기를 극복하고 다양성을 포용하도록 만드는 가장 강력한 영감의 원천"이라며 "우리의 정론직필을 통해 자연과 인간, 전통과 미래가 공존하는 지속가능한 사회를 만드는데 헌신할 것"이라고 선언했다.
+
+한국문화저널은 향후 매주 'UN SDG & 문화 헤리티지' 특집 섹션을 통해 기후변화가 세계 문화유산에 미치는 영향, 전통 생태 지혜의 현대적 활용, 취약계층 예술 지원 현장을 심층 보도할 예정이다.`,
+    contentEn: `Korea Culture Journal has officially joined the United Nations SDG Publishers Compact as an accredited signatory.
+
+The UN SDG Publishers Compact is a global initiative for publishers and news organizations to champion the 17 Sustainable Development Goals (SDGs) by 2030 through environmental journalism, sustainable publishing operations, and fostering cultural inclusivity.
+
+"Culture and the arts provide humanity with deep spiritual resilience and ecological wisdom," stated the Editorial Board of Korea Culture Journal. "Through fearless, principled journalism, we will advance global climate awareness, heritage safeguarding, and equitable creative opportunities for all."`,
+    reporter: REPORTERS.kang_sy,
+    publishedAt: '2026.08.21. 06:30',
+    views: 71200,
+    shares: 2310,
+    likes: 3410,
+    reactions: {
+      info: 1950,
+      exciting: 1220,
+      empathy: 2890,
+      analysis: 680,
+      followup: 450,
+    },
+    imageUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=1200&q=80',
+    imageCaption: '▲ 한국문화저널의 유엔 SDG 퍼블리셔 콤팩트 공식 서약 및 지속가능 저널리즘 비전 선포.',
+    imageCaptionEn: '▲ Korea Culture Journal announcing its commitment to the UN SDG Publishers Compact.',
+    tags: ['UN_SDG', '유엔퍼블리셔콤팩트', '지속가능발전', '기후위기', '문화다양성', 'ESG저널리즘'],
+    tagsEn: ['UN_SDG', 'PublishersCompact', 'Sustainability', 'ClimateAction', 'CulturalDiversity', 'ESG'],
+    sectionPage: 'UN SDG 특별지면',
+    badge: '선언',
+    commentsCount: 52,
+    aiSummary: [
+      '한국문화저널, 유엔(UN) SDG 퍼블리셔 콤팩트 공식 서약 매체로 동참',
+      '지속가능성 콘텐츠 보도 확대 및 친환경 뉴스룸 운영 원칙 천명',
+      '기후위기 속 전통 문화유산 보전 및 문화다양성 심층 보도 전개',
+    ],
+    aiSummaryEn: [
+      'Korea Culture Journal becomes official signatory to UN SDG Publishers Compact',
+      'Commitment to environmental coverage, sustainable publishing, and diversity',
+      'Focusing on climate impacts on heritage and indigenous ecological wisdom',
+    ],
+  },
 ];
 
 export const MOCK_COMMENTS: Record<string, any[]> = {
@@ -559,11 +669,13 @@ export const PAPER_PAGES: PaperPage[] = [
 ];
 
 export const CATEGORY_TABS = [
-  { id: 'all' as const, label: '주요뉴스', subcategories: ['헤드라인', '실시간속보', '인기뉴스', '이슈포커스'] },
-  { id: 'culture_art' as const, label: '문화·예술', subcategories: ['미술·전시', '공연·클래식', '문학·출판', '전통예술'] },
-  { id: 'k_culture' as const, label: 'K-컬처·엔터', subcategories: ['한류패션', 'K-뮤직', '영상·스토리', 'K-푸드'] },
-  { id: 'heritage' as const, label: '전통과 유산', subcategories: ['국가유산', '무형문화재', '고궁·사찰', '한옥·공예'] },
-  { id: 'opinion' as const, label: '오피니언', subcategories: ['문화시평', '데스크칼럼', '예술가인터뷰', '독자투고'] },
-  { id: 'photo_video' as const, label: '포토·영상', subcategories: ['고화질화보', '카드뉴스', '현장포토', '다큐영상'] },
-  { id: 'paper_edition' as const, label: '📰 지면보기', subcategories: ['1면 종합', '2면 문화', '3면 예술', '4면 오피니언'] },
+  { id: 'all' as const, label: '주요뉴스', labelEn: 'Top News', subcategories: ['헤드라인', '실시간속보', '인기뉴스', '이슈포커스'] },
+  { id: 'culture_art' as const, label: '문화·예술', labelEn: 'Culture & Art', subcategories: ['미술·전시', '공연·클래식', '문학·출판', '전통예술'] },
+  { id: 'heritage' as const, label: '전통·유산', labelEn: 'Heritage', subcategories: ['국가유산', '무형문화재', '고궁·사찰', '한옥·공예'] },
+  { id: 'k_culture' as const, label: 'K-컬처', labelEn: 'K-Culture', subcategories: ['한류패션', 'K-뮤직', '영상·스토리', 'K-푸드'] },
+  { id: 'opinion' as const, label: '오피니언', labelEn: 'Opinion', subcategories: ['문화시평', '데스크칼럼', '예술가인터뷰', '사설·칼럼'] },
+  { id: 'photo_video' as const, label: '포토·영상', labelEn: 'Photo & Video', subcategories: ['고화질화보', '카드뉴스', '현장포토', '다큐영상'] },
+  { id: 'global_news' as const, label: 'Global News', labelEn: 'Global News', subcategories: ['World Culture', 'Intl Exchange', 'K-Heritage Abroad', 'Museums'] },
+  { id: 'un_sdg' as const, label: 'UN SDG', labelEn: 'UN SDG', subcategories: ['Publishers Compact', 'Sustainability', 'Cultural Ecology', 'Global Goals'] },
+  { id: 'paper_edition' as const, label: '📰 지면보기', labelEn: '📰 Paper Edition', subcategories: ['1면 종합', '2면 문화', '3면 예술', '4면 오피니언'] },
 ];

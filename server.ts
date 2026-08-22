@@ -165,6 +165,137 @@ app.post('/api/ai/generate-news', async (req, res) => {
   }
 });
 
+// In-memory data store for server-backed persistence
+let serverArticles: any[] = [];
+let serverAdSettings: any = {
+  belowSubtitle: '',
+  inBody: '',
+  afterBody: '',
+  sidebarTop: '',
+  sidebarBottom: '',
+};
+
+// API: Get and Sync Articles
+app.get('/api/articles', (req, res) => {
+  res.json({ articles: serverArticles });
+});
+
+app.post('/api/articles/sync', (req, res) => {
+  try {
+    const { articles } = req.body;
+    if (Array.isArray(articles) && articles.length > 0) {
+      serverArticles = articles;
+    }
+    res.json({ success: true, count: serverArticles.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Sync failed' });
+  }
+});
+
+// API: Get and Save Ad Settings
+app.get('/api/ads', (req, res) => {
+  res.json({ ads: serverAdSettings });
+});
+
+app.post('/api/ads', (req, res) => {
+  try {
+    const { ads } = req.body;
+    if (ads && typeof ads === 'object') {
+      serverAdSettings = { ...serverAdSettings, ...ads };
+    }
+    res.json({ success: true, ads: serverAdSettings });
+  } catch (error) {
+    res.status(500).json({ error: 'Ad save failed' });
+  }
+});
+
+// SEO: robots.txt for Googlebot & Yeti (Naver SearchBot)
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(`User-agent: *
+Allow: /
+Sitemap: https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/sitemap.xml
+
+User-agent: Yeti
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+`);
+});
+
+// SEO: Dynamic XML Sitemap for Google & Naver Search
+app.get('/sitemap.xml', (req, res) => {
+  res.type('application/xml');
+  const baseUrl = 'https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app';
+  const currentDate = new Date().toISOString().split('T')[0];
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>always</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/amp</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/paper-edition</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/culture-art</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/heritage</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>`;
+  res.send(xml);
+});
+
+// SEO: RSS 2.0 Feed for Naver Media, Google News & Daum News
+app.get('/rss.xml', (req, res) => {
+  res.type('application/rss+xml');
+  const baseUrl = 'https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app';
+  const pubDate = new Date().toUTCString();
+
+  const rss = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>한국문화저널 (Korea Culture Journal)</title>
+    <link>${baseUrl}/</link>
+    <description>대한민국 문화·예술·전통유산 전문 정론지 한국문화저널의 실시간 속보 피드</description>
+    <language>ko-KR</language>
+    <copyright>Copyright 2026 (주)한국문화저널미디어 All Rights Reserved.</copyright>
+    <pubDate>${pubDate}</pubDate>
+    <atom:link href="${baseUrl}/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title><![CDATA[[단독] 해외 유출 국보급 조선 문화재 23만 점 환수 프로젝트 본격화]]></title>
+      <link>${baseUrl}/#art-001</link>
+      <description><![CDATA[국가유산청과 국외소재문화유산재단이 전 세계 22개국에 흩어진 23만 여 점의 한국 문화유산 환수를 위한 범정부 민관합동위원회를 공식 출범했다.]]></description>
+      <author>park_cw@kculturejournal.com (박찬우 문화전문기자)</author>
+      <category>전통·유산</category>
+      <pubDate>${pubDate}</pubDate>
+      <guid>${baseUrl}/#art-001</guid>
+    </item>
+  </channel>
+</rss>`;
+  res.send(rss);
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

@@ -9,7 +9,23 @@ export interface Reporter {
   subscriberCount: number;
   cheerCount: number;
   isSubscribed?: boolean;
+  status?: 'ACTIVE' | 'PENDING_APPROVAL' | 'SUSPENDED';
+  joinedDate?: string;
 }
+
+export type UserRole = 'GUEST' | 'REPORTER' | 'EDITOR_IN_CHIEF';
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  department?: string;
+  reporterId?: string;
+  avatar?: string;
+}
+
+export type ArticleStatus = 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED';
 
 export type ReactionType = 'info' | 'exciting' | 'empathy' | 'analysis' | 'followup';
 
@@ -24,6 +40,7 @@ export interface ReactionCounts {
 export interface Comment {
   id: string;
   articleId: string;
+  articleTitle?: string;
   author: string;
   authorBadge?: string;
   content: string;
@@ -32,8 +49,11 @@ export interface Comment {
   dislikes: number;
   userLiked?: boolean;
   userDisliked?: boolean;
+  isBlocked?: boolean;
   replies?: Comment[];
 }
+
+export type Language = 'ko' | 'en';
 
 export type CategoryId = 
   | 'all' 
@@ -42,23 +62,33 @@ export type CategoryId =
   | 'heritage' 
   | 'opinion' 
   | 'photo_video'
+  | 'global_news'
+  | 'un_sdg'
   | 'paper_edition';
 
 export interface CategoryTab {
   id: CategoryId;
   label: string;
+  labelEn?: string;
   subcategories: string[];
+  order?: number;
+  isActive?: boolean;
 }
 
 export interface Article {
   id: string;
   category: CategoryId;
   categoryLabel: string;
+  categoryLabelEn?: string;
   subCategory?: string;
   title: string;
+  titleEn?: string;
   subtitle?: string;
+  subtitleEn?: string;
   summary: string;
+  summaryEn?: string;
   content: string;
+  contentEn?: string;
   reporter: Reporter;
   publishedAt: string;
   updatedAt?: string;
@@ -69,14 +99,21 @@ export interface Article {
   userReaction?: ReactionType;
   imageUrl: string;
   imageCaption?: string;
+  imageCaptionEn?: string;
   tags: string[];
+  tagsEn?: string[];
   sectionPage?: string; // e.g. "1면 Top", "3면 기획"
+  pageNumber?: number; // 1, 2, 3, 4면 등 지면 번호
   isBreaking?: boolean;
   isTopHeadline?: boolean;
   isEditorialPick?: boolean;
   commentsCount: number;
-  badge?: '단독' | '기획' | '속보' | '포토' | '해설' | '칼럼' | '인터뷰';
+  badge?: '단독' | '기획' | '속보' | '포토' | '해설' | '칼럼' | '인터뷰' | '사설' | '특파원' | '선언' | string;
+  badgeEn?: string;
   aiSummary?: string[];
+  aiSummaryEn?: string[];
+  status?: ArticleStatus; // 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'
+  rejectionReason?: string;
 }
 
 export interface CulturalEvent {
@@ -89,6 +126,9 @@ export interface CulturalEvent {
   dDay: string;
   status: '진행중' | '예매중' | '마감임박';
   linkUrl?: string;
+  organizer?: string;
+  fee?: string;
+  description?: string;
 }
 
 export interface IssueCluster {
@@ -99,10 +139,36 @@ export interface IssueCluster {
   timeAgo: string;
 }
 
+export interface MediaAsset {
+  id: string;
+  name: string;
+  url: string;
+  caption: string;
+  photographer: string;
+  uploadedAt: string;
+  category: string;
+  fileSize: string;
+}
+
 export interface PaperPage {
   pageNumber: number;
+  sectionName?: string;
   title: string;
-  sectionName: string;
+  subtitle?: string;
+  themeColor?: string;
+  pdfUrl?: string;
   date: string;
-  articles: Article[];
+  topArticle?: Article;
+  subArticles?: Article[];
+  articles?: Article[];
 }
+
+export interface AdSettings {
+  belowSubtitle: string; // ① 기사 제목 바로 아래 (서브타이틀 하단)
+  inBody: string;        // ② 본문 중간 (문단 3~4번째 직후)
+  afterBody: string;     // ③ 기사 본문 완료 직후
+  sidebarTop: string;    // ④ 우측 사이드바 상단
+  sidebarBottom: string; // ⑤ 우측 사이드바 하단
+}
+
+

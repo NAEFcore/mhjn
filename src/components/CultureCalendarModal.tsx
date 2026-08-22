@@ -4,12 +4,15 @@ import { CULTURAL_EVENTS } from '../data/mockNews';
 import { CulturalEvent } from '../types';
 
 interface CultureCalendarModalProps {
+  events?: CulturalEvent[];
   onClose: () => void;
 }
 
-export const CultureCalendarModal: React.FC<CultureCalendarModalProps> = ({ onClose }) => {
+export const CultureCalendarModal: React.FC<CultureCalendarModalProps> = ({ events = CULTURAL_EVENTS, onClose }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [savedEvents, setSavedEvents] = useState<Set<string>>(new Set());
+
+  const currentEvents = events && events.length > 0 ? events : CULTURAL_EVENTS;
 
   const categories = [
     { id: 'all', label: '전체 일정' },
@@ -19,7 +22,7 @@ export const CultureCalendarModal: React.FC<CultureCalendarModalProps> = ({ onCl
     { id: '축제', label: '전통 축제·체험' },
   ];
 
-  const filteredEvents = CULTURAL_EVENTS.filter((ev) => {
+  const filteredEvents = currentEvents.filter((ev) => {
     if (selectedFilter === 'all') return true;
     return ev.category === selectedFilter;
   });
@@ -35,7 +38,7 @@ export const CultureCalendarModal: React.FC<CultureCalendarModalProps> = ({ onCl
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-gray-200 animate-fade-in flex flex-col max-h-[90vh]">
+      <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-gray-200 animate-fade-in flex flex-col max-h-[90vh] font-sans">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -87,7 +90,7 @@ export const CultureCalendarModal: React.FC<CultureCalendarModalProps> = ({ onCl
                 className="flex flex-col sm:flex-row items-start gap-4 p-4 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/20 transition-all bg-white"
               >
                 <img
-                  src={event.imageUrl}
+                  src={event.imageUrl || 'https://images.unsplash.com/photo-1548115184-bc6544d06a58?auto=format&fit=crop&w=600&q=80'}
                   alt={event.title}
                   referrerPolicy="no-referrer"
                   className="w-full sm:w-36 h-28 rounded-lg object-cover bg-gray-100 shrink-0"
@@ -98,14 +101,14 @@ export const CultureCalendarModal: React.FC<CultureCalendarModalProps> = ({ onCl
                       {event.category}
                     </span>
                     <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-xs">
-                      {event.dDay}
+                      {event.dDay || 'D-Day'}
                     </span>
                     <span className="text-xs font-semibold text-gray-500">
-                      상태: {event.status}
+                      상태: {event.status || '진행중'}
                     </span>
                   </div>
 
-                  <h3 className="text-sm sm:text-base font-bold text-gray-900 leading-snug mb-1">
+                  <h3 className="text-sm sm:text-base font-bold text-gray-900 leading-snug mb-1 font-serif-kr">
                     {event.title}
                   </h3>
 

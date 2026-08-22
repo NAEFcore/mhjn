@@ -1,31 +1,131 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { BreakingTicker } from '../components/BreakingTicker';
 import { MainNewsHero } from '../components/MainNewsHero';
+import { EditorialSectionBanner } from '../components/EditorialSectionBanner';
 import { RankingSection } from '../components/RankingSection';
+import { OpinionSidebarSection } from '../components/OpinionSidebarSection';
 import { IssueClustering } from '../components/IssueClustering';
 import { CultureCalendarRadar } from '../components/CultureCalendarRadar';
 import { SectionArticleGrid } from '../components/SectionArticleGrid';
 import { PaperEditionView } from '../components/PaperEditionView';
-import { ArticleDetailModal } from '../components/ArticleDetailModal';
 import { CultureCalendarModal } from '../components/CultureCalendarModal';
 import { ReportersDeskModal } from '../components/ReportersDeskModal';
 import { AiNewsGeneratorModal } from '../components/AiNewsGeneratorModal';
 import { BookmarksModal } from '../components/BookmarksModal';
+import { FactCheckModal } from '../components/FactCheckModal';
+import { EditorialColumnModal } from '../components/EditorialColumnModal';
+import { OmbudsmanModal } from '../components/OmbudsmanModal';
+import { WpXmlConverterModal } from '../components/WpXmlConverterModal';
+import { NewsTipModal } from '../components/NewsTipModal';
+import { ArticleDetailPage } from './ArticleDetailPage';
+import { UnSdgPage } from './UnSdgPage';
 import { Footer } from '../components/Footer';
 
-import { INITIAL_ARTICLES, CATEGORY_TABS } from '../data/mockNews';
-import { Article, CategoryId, Reporter } from '../types';
+import { CATEGORY_TABS } from '../data/mockNews';
+import { Article, CategoryId, Reporter, CulturalEvent, AuthUser, Language } from '../types';
 
-export const KoreaCultureJournalPage: React.FC = () => {
-  // Articles state
-  const [articles, setArticles] = useState<Article[]>(INITIAL_ARTICLES);
-  const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
+interface KoreaCultureJournalPageProps {
+  articles: Article[];
+  onUpdateArticles: (arts: Article[]) => void;
+  reporters: Reporter[];
+  onUpdateReporters: (reps: Reporter[]) => void;
+  events: CulturalEvent[];
+  onUpdateEvents: (evts: CulturalEvent[]) => void;
+  activeCategoryProp?: string;
+  onChangeCategory?: (cat: string) => void;
+  currentUser: AuthUser | null;
+  onOpenAdminDesk?: () => void;
+  onOpenAuthModal?: () => void;
+  initialArticleId?: string | null;
+}
+
+export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = ({
+  articles,
+  onUpdateArticles,
+  reporters,
+  onUpdateReporters,
+  events,
+  onUpdateEvents,
+  activeCategoryProp = 'all',
+  onChangeCategory,
+  currentUser,
+  onOpenAdminDesk,
+  onOpenAuthModal,
+  initialArticleId = null,
+}) => {
+  const [activeCategory, setActiveCategory] = useState<CategoryId>((activeCategoryProp as CategoryId) || 'all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
+  const [lang, setLang] = useState<Language>('ko');
 
-  // Selected Article for Detail Modal
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  // Selected Article for Standalone Detail Page (Requirement 1 & 2)
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(() => {
+    if (initialArticleId) {
+      return articles.find((a) => a.id === initialArticleId) || null;
+    }
+    // Check URL path or hash
+    const path = window.location.pathname;
+    const match = path.match(/\/article\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      return articles.find((a) => a.id === match[1]) || null;
+    }
+    return null;
+  });
+
+  // Sync with browser URL changes
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const match = path.match(/\/article\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        const found = articles.find((a) => a.id === match[1]);
+        if (found) setSelectedArticle(found);
+      } else if (path === '/un-sdg') {
+        setActiveCategory('un_sdg');
+        setSelectedArticle(null);
+      } else {
+        setSelectedArticle(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [articles]);
+
+  // Sync external category changes
+  useEffect(() => {
+    if (activeCategoryProp) {
+      setActiveCategory(activeCategoryProp as CategoryId);
+    }
+  }, [activeCategoryProp]);
+
+  const handleSelectCategory = (cat: CategoryId) => {
+    setActiveCategory(cat);
+    setSelectedKeyword(null);
+    setSelectedArticle(null);
+    if (window.history.pushState) {
+      window.history.pushState({}, '', cat === 'all' ? '/' : `/?category=${cat}`);
+    }
+    if (onChangeCategory) onChangeCategory(cat);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenArticle = (art: Article) => {
+    setSelectedArticle(art);
+    if (window.history.pushState) {
+      window.history.pushState({ articleId: art.id }, '', `/article/${art.id}`);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackFromArticle = () => {
+    setSelectedArticle(null);
+    if (window.history.pushState) {
+      window.history.pushState({}, '', '/');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Press Subscription State
   const [isPressSubscribed, setIsPressSubscribed] = useState(false);
@@ -39,6 +139,11 @@ export const KoreaCultureJournalPage: React.FC = () => {
   const [showReportersModal, setShowReportersModal] = useState(false);
   const [showAiGenModal, setShowAiGenModal] = useState(false);
   const [showBookmarksModal, setShowBookmarksModal] = useState(false);
+  const [showFactCheckModal, setShowFactCheckModal] = useState(false);
+  const [showEditorialModal, setShowEditorialModal] = useState(false);
+  const [showOmbudsmanModal, setShowOmbudsmanModal] = useState(false);
+  const [showWpXmlModal, setShowWpXmlModal] = useState(false);
+  const [showNewsTipModal, setShowNewsTipModal] = useState(false);
 
   // Toggle Bookmark
   const handleToggleBookmark = (articleId: string, e?: React.MouseEvent) => {
@@ -63,12 +168,19 @@ export const KoreaCultureJournalPage: React.FC = () => {
 
   // Publish New AI Generated Article
   const handlePublishNewArticle = (newArt: Article) => {
-    setArticles([newArt, ...articles]);
-    setSelectedArticle(newArt);
+    onUpdateArticles([newArt, ...articles]);
+    handleOpenArticle(newArt);
   };
 
   // Filtered Articles Logic
-  const filteredArticles = articles.filter((art) => {
+  const visibleArticles = articles.filter((art) => {
+    if (!art.status || art.status === 'PUBLISHED') return true;
+    if (currentUser?.role === 'EDITOR_IN_CHIEF') return true;
+    if (currentUser?.reporterId && art.reporter.id === currentUser.reporterId) return true;
+    return false;
+  });
+
+  const filteredArticles = visibleArticles.filter((art) => {
     if (activeCategory !== 'all' && activeCategory !== 'paper_edition' && art.category !== activeCategory) {
       return false;
     }
@@ -91,20 +203,19 @@ export const KoreaCultureJournalPage: React.FC = () => {
     return true;
   });
 
-  const topHeroArticle = articles.find((a) => a.isTopHeadline) || articles[0];
-  const subHeroArticles = articles.filter((a) => a.id !== topHeroArticle?.id).slice(0, 4);
+  const topHeroArticle = visibleArticles.find((a) => a.isTopHeadline) || visibleArticles[0];
+  const subHeroArticles = visibleArticles.filter((a) => a.id !== topHeroArticle?.id).slice(0, 4);
 
   const activeCategoryInfo = CATEGORY_TABS.find((t) => t.id === activeCategory);
 
+
+
   return (
-    <div className="min-h-screen bg-[#f8f9fa] flex flex-col selection:bg-[#0051a8] selection:text-white">
-      {/* 1. Header (Naver Press 009 Channel Structure) */}
+    <div className="min-h-screen bg-[#f8f6f2] flex flex-col selection:bg-[#1b2a47] selection:text-amber-200 font-sans">
+      {/* 1. Header */}
       <Header
         activeCategory={activeCategory}
-        onSelectCategory={(cat) => {
-          setActiveCategory(cat);
-          setSelectedKeyword(null);
-        }}
+        onSelectCategory={handleSelectCategory}
         isSubscribed={isPressSubscribed}
         onToggleSubscribe={() => setIsPressSubscribed(!isPressSubscribed)}
         bookmarkCount={bookmarkedIds.size}
@@ -112,67 +223,116 @@ export const KoreaCultureJournalPage: React.FC = () => {
         onOpenCalendar={() => setShowCalendarModal(true)}
         onOpenReporters={() => setShowReportersModal(true)}
         onOpenAiGenerator={() => setShowAiGenModal(true)}
+        onOpenFactCheck={() => setShowFactCheckModal(true)}
+        onOpenEditorial={() => setShowEditorialModal(true)}
+        onOpenOmbudsman={() => setShowOmbudsmanModal(true)}
+        onOpenWpXmlExtractor={() => setShowWpXmlModal(true)}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSelectKeyword={(kw) => {
           setSelectedKeyword(kw);
           setActiveCategory('all');
         }}
+        lang={lang}
+        onToggleLang={() => setLang(lang === 'ko' ? 'en' : 'ko')}
       />
 
-      {/* 2. Breaking News Flash Ticker */}
-      <BreakingTicker
-        articles={articles}
-        onSelectArticle={(art) => setSelectedArticle(art)}
-      />
+      {/* 2. Main Content: Article Detail Page if selected, else Newsroom Home */}
+      {selectedArticle ? (
+        <main className="flex-1 w-full">
+          <ArticleDetailPage
+            article={selectedArticle}
+            onBack={handleBackFromArticle}
+            onSelectRelatedArticle={handleOpenArticle}
+            isBookmarked={bookmarkedIds.has(selectedArticle.id)}
+            onToggleBookmark={() => handleToggleBookmark(selectedArticle.id)}
+            lang={lang}
+            onToggleLang={() => setLang(lang === 'ko' ? 'en' : 'ko')}
+            allArticles={visibleArticles}
+            onOpenEditorial={() => setShowEditorialModal(true)}
+          />
+        </main>
+      ) : (
+        <>
+          {/* Breaking News Flash Ticker */}
+          <BreakingTicker
+            articles={visibleArticles}
+            onSelectArticle={handleOpenArticle}
+          />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-5">
+          {/* Main Content Area */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
         {/* Active Keyword / Search Filter Banner */}
         {(selectedKeyword || searchQuery) && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex items-center justify-between text-xs text-blue-900">
+          <div className="bg-[#eeebe3] border border-[#d8d3cb] rounded-xl p-3.5 flex items-center justify-between text-xs text-slate-800">
             <div className="flex items-center gap-2">
-              <span className="font-bold">검색 필터 적용중:</span>
+              <span className="font-serif-kr font-bold">검색 필터 적용중:</span>
               {selectedKeyword && (
-                <span className="px-2.5 py-0.5 bg-blue-600 text-white rounded-full font-bold">
+                <span className="px-2.5 py-0.5 bg-[#1b2a47] text-white rounded-full font-bold">
                   {selectedKeyword}
                 </span>
               )}
               {searchQuery && (
-                <span className="px-2.5 py-0.5 bg-gray-800 text-white rounded-full font-semibold">
+                <span className="px-2.5 py-0.5 bg-slate-800 text-white rounded-full font-semibold">
                   "{searchQuery}"
                 </span>
               )}
-              <span className="text-gray-500 font-medium">({filteredArticles.length}건 검색됨)</span>
+              <span className="text-slate-500 font-medium">({filteredArticles.length}건 검색됨)</span>
             </div>
             <button
               onClick={() => {
                 setSelectedKeyword(null);
                 setSearchQuery('');
               }}
-              className="text-xs font-bold text-blue-700 hover:underline"
+              className="text-xs font-bold text-[#1b2a47] hover:underline"
             >
               필터 초기화
             </button>
           </div>
         )}
 
-        {/* View Mode 1: Newspaper Print Edition Viewer */}
-        {activeCategory === 'paper_edition' ? (
+        {/* View Mode 1: UN SDG Special Feature Page (Requirement 13) */}
+        {activeCategory === 'un_sdg' ? (
+          <div className="space-y-6">
+            <UnSdgPage
+              onBackToHome={() => handleSelectCategory('all')}
+              lang={lang}
+            />
+            {/* Show UN SDG related news articles */}
+            <div className="pt-6 border-t border-gray-200">
+              <SectionArticleGrid
+                title="UN SDG & 문화 생태계 관련 보도"
+                subtitle="지속가능발전목표(SDGs)와 대한민국 문화유산 보전 특별 기사"
+                articles={visibleArticles.filter((a) => a.category === 'un_sdg' || a.tags.includes('UN_SDG'))}
+                onSelectArticle={handleOpenArticle}
+                bookmarkedIds={bookmarkedIds}
+                onToggleBookmark={handleToggleBookmark}
+              />
+            </div>
+          </div>
+        ) : activeCategory === 'paper_edition' ? (
+          /* View Mode 2: Newspaper Print Edition Viewer */
           <PaperEditionView
-            onSelectArticle={(art) => setSelectedArticle(art)}
+            onSelectArticle={handleOpenArticle}
           />
         ) : activeCategory === 'all' && !searchQuery && !selectedKeyword ? (
-          /* View Mode 2: Main Editorial Press Home (Naver Press 009 Style) */
+          /* View Mode 3: Main Editorial Press Home (Broadsheet Layout) */
           <div className="space-y-8">
             {/* Top Headline Hero Grid */}
             <MainNewsHero
               topArticle={topHeroArticle}
               subArticles={subHeroArticles}
-              onSelectArticle={(art) => setSelectedArticle(art)}
+              onSelectArticle={handleOpenArticle}
             />
 
-            {/* Middle 2-Column: Left (News Feed) & Right (Rankings, Issues, Culture Radar) */}
+            {/* 정론 데스크 메인 배너 (사설/칼럼 + 문화재 팩트체크 + 독자권익위원회) */}
+            <EditorialSectionBanner
+              onOpenFactCheck={() => setShowFactCheckModal(true)}
+              onOpenEditorial={() => setShowEditorialModal(true)}
+              onOpenOmbudsman={() => setShowOmbudsmanModal(true)}
+            />
+
+            {/* Middle 2-Column: Left (News Feed) & Right (Rankings, Editorial Opinion, Issues, Culture Radar) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Left Column (8 Cols): Section Highlights & In-Depth Stories */}
               <div className="lg:col-span-8 space-y-8">
@@ -180,8 +340,8 @@ export const KoreaCultureJournalPage: React.FC = () => {
                 <SectionArticleGrid
                   title="문화·예술 기획"
                   subtitle="미술관 특별전, 거장 인터뷰, 클래식과 전통 공연의 현장"
-                  articles={articles.filter((a) => a.category === 'culture_art')}
-                  onSelectArticle={(art) => setSelectedArticle(art)}
+                  articles={visibleArticles.filter((a) => a.category === 'culture_art')}
+                  onSelectArticle={handleOpenArticle}
                   bookmarkedIds={bookmarkedIds}
                   onToggleBookmark={handleToggleBookmark}
                 />
@@ -190,8 +350,8 @@ export const KoreaCultureJournalPage: React.FC = () => {
                 <SectionArticleGrid
                   title="전통과 유산 (K-헤리티지)"
                   subtitle="천년의 숨결, 무형문화재 명장과 국가유산 심층 보도"
-                  articles={articles.filter((a) => a.category === 'heritage')}
-                  onSelectArticle={(art) => setSelectedArticle(art)}
+                  articles={visibleArticles.filter((a) => a.category === 'heritage')}
+                  onSelectArticle={handleOpenArticle}
                   bookmarkedIds={bookmarkedIds}
                   onToggleBookmark={handleToggleBookmark}
                 />
@@ -200,8 +360,18 @@ export const KoreaCultureJournalPage: React.FC = () => {
                 <SectionArticleGrid
                   title="K-컬처 & 라이프스타일"
                   subtitle="세계인을 사로잡은 한복, 한식, K-콘텐츠의 인문학적 탐구"
-                  articles={articles.filter((a) => a.category === 'k_culture')}
-                  onSelectArticle={(art) => setSelectedArticle(art)}
+                  articles={visibleArticles.filter((a) => a.category === 'k_culture')}
+                  onSelectArticle={handleOpenArticle}
+                  bookmarkedIds={bookmarkedIds}
+                  onToggleBookmark={handleToggleBookmark}
+                />
+
+                {/* Global News Section (Requirement 12) */}
+                <SectionArticleGrid
+                  title="Global News (해외 문화 & 글로벌 교류)"
+                  subtitle="뉴욕 메트, 파리 루브르 등 해외 유수 미술관과 글로벌 한국 문화재 소식"
+                  articles={visibleArticles.filter((a) => a.category === 'global_news')}
+                  onSelectArticle={handleOpenArticle}
                   bookmarkedIds={bookmarkedIds}
                   onToggleBookmark={handleToggleBookmark}
                 />
@@ -211,63 +381,69 @@ export const KoreaCultureJournalPage: React.FC = () => {
               <aside className="lg:col-span-4 space-y-6">
                 {/* 1. Real-time Rankings */}
                 <RankingSection
-                  articles={articles}
-                  onSelectArticle={(art) => setSelectedArticle(art)}
+                  articles={visibleArticles}
+                  onSelectArticle={handleOpenArticle}
                 />
 
-                {/* 2. Issue Clustering (심층 묶음 뉴스) */}
+                {/* 2. Editorial & Opinion Sidebar Section under Ranking */}
+                <OpinionSidebarSection
+                  onOpenEditorialModal={() => setShowEditorialModal(true)}
+                />
+
+                {/* 3. Issue Clustering (심층 묶음 뉴스) - Requirement 8: Clickable to open article */}
                 <IssueClustering
                   onSelectKeyword={(kw) => {
                     setSelectedKeyword(kw);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
+                  onSelectArticle={(articleId) => {
+                    const targetArt = articles.find((a) => a.id === articleId);
+                    if (targetArt) handleOpenArticle(targetArt);
+                  }}
                 />
 
-                {/* 3. Culture Radar (Exhibitions & Palace Openings) */}
+                {/* 4. Culture Radar (Exhibitions & Palace Openings) - Requirement 3: Dynamic Events */}
                 <CultureCalendarRadar
+                  events={events}
                   onOpenFullCalendar={() => setShowCalendarModal(true)}
                 />
               </aside>
             </div>
           </div>
         ) : (
-          /* View Mode 3: Specific Category Grid */
+          /* View Mode 4: Specific Category Grid (e.g. Global News, Heritage, Culture Art, etc.) */
           <div className="space-y-6">
             <SectionArticleGrid
               title={activeCategoryInfo?.label || '기사 목록'}
               subtitle={activeCategoryInfo?.subcategories?.join(' · ')}
               articles={filteredArticles}
-              onSelectArticle={(art) => setSelectedArticle(art)}
+              onSelectArticle={handleOpenArticle}
               bookmarkedIds={bookmarkedIds}
               onToggleBookmark={handleToggleBookmark}
             />
           </div>
         )}
       </main>
-
-      {/* 3. Footer */}
-      <Footer />
-
-      {/* Modals & Popups */}
-      {/* Article Detail Reading Modal */}
-      {selectedArticle && (
-        <ArticleDetailModal
-          article={selectedArticle}
-          onClose={() => setSelectedArticle(null)}
-          onSelectRelatedArticle={(art) => setSelectedArticle(art)}
-          isBookmarked={bookmarkedIds.has(selectedArticle.id)}
-          onToggleBookmark={() => handleToggleBookmark(selectedArticle.id)}
-        />
+      </>
       )}
 
-      {/* Culture Calendar Modal */}
+      {/* 3. Footer (Requirement 7, 9, 14) */}
+      <Footer
+        onOpenNewsTip={() => setShowNewsTipModal(true)}
+        onOpenOmbudsman={() => setShowOmbudsmanModal(true)}
+        onOpenSdgPage={() => handleSelectCategory('un_sdg')}
+        onOpenEditorial={() => setShowEditorialModal(true)}
+        onOpenFactCheck={() => setShowFactCheckModal(true)}
+      />
+
+      {/* Modals & Dialogs */}
       {showCalendarModal && (
         <CultureCalendarModal
+          events={events}
           onClose={() => setShowCalendarModal(false)}
         />
       )}
 
-      {/* Reporters Desk Modal */}
       {showReportersModal && (
         <ReportersDeskModal
           onClose={() => setShowReportersModal(false)}
@@ -276,7 +452,6 @@ export const KoreaCultureJournalPage: React.FC = () => {
         />
       )}
 
-      {/* AI News Scoop Generator Modal */}
       {showAiGenModal && (
         <AiNewsGeneratorModal
           onClose={() => setShowAiGenModal(false)}
@@ -284,14 +459,44 @@ export const KoreaCultureJournalPage: React.FC = () => {
         />
       )}
 
-      {/* Bookmarks / Scrap Modal */}
       {showBookmarksModal && (
         <BookmarksModal
           onClose={() => setShowBookmarksModal(false)}
           articles={articles}
           bookmarkedIds={bookmarkedIds}
-          onSelectArticle={(art) => setSelectedArticle(art)}
+          onSelectArticle={handleOpenArticle}
           onRemoveBookmark={(id) => handleToggleBookmark(id)}
+        />
+      )}
+
+      {showFactCheckModal && (
+        <FactCheckModal
+          onClose={() => setShowFactCheckModal(false)}
+        />
+      )}
+
+      {showEditorialModal && (
+        <EditorialColumnModal
+          onClose={() => setShowEditorialModal(false)}
+        />
+      )}
+
+      {showOmbudsmanModal && (
+        <OmbudsmanModal
+          onClose={() => setShowOmbudsmanModal(false)}
+        />
+      )}
+
+      {showWpXmlModal && (
+        <WpXmlConverterModal
+          onClose={() => setShowWpXmlModal(false)}
+        />
+      )}
+
+      {/* Requirement 9: 기사제보 modal directly sending to soobakmu@naver.com */}
+      {showNewsTipModal && (
+        <NewsTipModal
+          onClose={() => setShowNewsTipModal(false)}
         />
       )}
     </div>
