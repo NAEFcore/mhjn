@@ -40,6 +40,7 @@ import { EditorialColumnModal } from '../components/EditorialColumnModal';
 import { McstPressReleaseSidebar } from '../components/McstPressReleaseSidebar';
 import { DynamicAdBanner } from '../components/DynamicAdBanner';
 import { translateArticleToEnglish, TranslatedArticleData } from '../utils/translator';
+import { Radio } from 'lucide-react';
 
 interface ArticleDetailPageProps {
   article: Article;
@@ -53,6 +54,7 @@ interface ArticleDetailPageProps {
   onOpenEditorial?: () => void;
   onSelectCategory?: (catId: string) => void;
   adSettings?: AdSettings;
+  onGoToRadio?: (articleId: string, lang: Language) => void;
 }
 
 export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
@@ -67,8 +69,17 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
   onOpenEditorial,
   onSelectCategory,
   adSettings,
+  onGoToRadio,
 }) => {
   const isEn = lang === 'en';
+
+  const handleNavigateToRadio = () => {
+    if (onGoToRadio) {
+      onGoToRadio(article.id, lang);
+    } else {
+      window.location.href = `/kcj-radio?article=${encodeURIComponent(article.id)}&lang=${lang}`;
+    }
+  };
 
   // Editorial modal state (if opened internally)
   const [showEditorialModal, setShowEditorialModal] = useState(false);
@@ -484,7 +495,17 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
           </div>
 
           {/* Action Tools (Language Toggle, Font Size, Bookmark, Share, Print) */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+            {/* Listen on KCJ Radio Button */}
+            <button
+              onClick={handleNavigateToRadio}
+              className="px-3 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-lg shadow-xs flex items-center gap-1.5 transition-all active:scale-95 border border-amber-400"
+              title="KCJ Radio에서 기사 방송으로 듣기"
+            >
+              <Radio className="w-3.5 h-3.5 text-slate-950" />
+              <span>🎙 Listen on KCJ Radio</span>
+            </button>
+
             {/* KO / EN Language Toggle */}
             <button
               onClick={onToggleLang}
@@ -692,22 +713,34 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
             </div>
           </div>
 
-          {/* Speed Selector */}
-          <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700 text-xs">
-            <span className="text-slate-400 text-[10px] px-1 font-bold">배속:</span>
-            {[0.8, 1.0, 1.2, 1.5].map((spd) => (
-              <button
-                key={spd}
-                onClick={() => handleChangeTtsSpeed(spd)}
-                className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-all ${
-                  audioSpeed === spd
-                    ? 'bg-amber-400 text-slate-950 font-black'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                {spd}x
-              </button>
-            ))}
+          {/* Right: Speed Selector & Open in KCJ Radio Button */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleNavigateToRadio}
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 active:scale-95"
+              title="KCJ Radio 디지털 방송국 전용 스튜디오에서 듣기"
+            >
+              <Radio className="w-3.5 h-3.5 text-slate-950" />
+              <span>🎙 KCJ Radio 스튜디오에서 듣기</span>
+            </button>
+
+            {/* Speed Selector */}
+            <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700 text-xs">
+              <span className="text-slate-400 text-[10px] px-1 font-bold">배속:</span>
+              {[0.8, 1.0, 1.2, 1.5].map((spd) => (
+                <button
+                  key={spd}
+                  onClick={() => handleChangeTtsSpeed(spd)}
+                  className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-all ${
+                    audioSpeed === spd
+                      ? 'bg-amber-400 text-slate-950 font-black'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {spd}x
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

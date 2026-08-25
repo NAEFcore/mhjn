@@ -1,6 +1,6 @@
 {
   "name": "IATPC 문화 & 한국문화저널",
-  "description": "한국문화저널 정론직필 디지털 뉴스룸 및 분야별 서브뉴스 포털, 광고 동적 삽입 시스템, 편집국 통합 CMS 데스크",
+  "description": "한국문화저널 정론직필 디지털 뉴스룸, KCJ Radio 디지털 라디오 방송국, 분야별 서브뉴스 포털 및 편집국 통합 CMS 데스크",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

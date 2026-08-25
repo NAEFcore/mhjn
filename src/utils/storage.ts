@@ -1,5 +1,5 @@
 // Persistent Storage Utility for articles, reporters, cultural events, auth user, ad settings, issue clusters, and RSS feeds
-import { Article, Reporter, CulturalEvent, AuthUser, AdSettings, IssueCluster, RssFeedSource, AutoCollectedItem, PopupConfig, McstRssItem } from '../types';
+import { Article, Reporter, CulturalEvent, AuthUser, AdSettings, IssueCluster, RssFeedSource, AutoCollectedItem, PopupConfig, DualPopupsConfig, McstRssItem } from '../types';
 import { INITIAL_ARTICLES, REPORTERS_DATA, CULTURAL_EVENTS, ISSUE_CLUSTERS } from '../data/mockNews';
 
 const STORAGE_KEYS = {

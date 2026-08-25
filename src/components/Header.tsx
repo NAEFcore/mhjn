@@ -19,7 +19,8 @@ import {
   Scale,
   FileSpreadsheet,
   Settings,
-  Lock
+  Lock,
+  Radio
 } from 'lucide-react';
 import { CategoryId } from '../types';
 import { CATEGORY_TABS, ISSUE_CLUSTERS } from '../data/mockNews';
@@ -39,6 +40,7 @@ interface HeaderProps {
   onOpenOmbudsman: () => void;
   onOpenWpXmlExtractor?: () => void;
   onOpenAdminDesk?: () => void;
+  onOpenRadio?: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onSelectKeyword: (kw: string) => void;
@@ -61,6 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenOmbudsman,
   onOpenWpXmlExtractor,
   onOpenAdminDesk,
+  onOpenRadio,
   searchQuery,
   onSearchChange,
   onSelectKeyword,
@@ -225,6 +228,18 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Action Tools & Search */}
         <div className="flex items-center gap-2">
+          {/* KCJ Radio Station Button */}
+          {onOpenRadio && (
+            <button
+              onClick={onOpenRadio}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-black rounded-lg text-xs shadow-xs transition-all active:scale-95 ring-1 ring-amber-400/40"
+              title="KCJ Radio 실시간 디지털 라디오 방송국 열기"
+            >
+              <Radio className="w-3.5 h-3.5 text-slate-950 animate-pulse" />
+              <span>📻 KCJ Radio</span>
+            </button>
+          )}
+
           {/* KO / EN Real Multi-Language Switch */}
           {onToggleLang && (
             <button

@@ -43,6 +43,7 @@ interface KoreaCultureJournalPageProps {
   onLogout?: () => void;
   initialArticleId?: string | null;
   adSettings?: AdSettings;
+  onGoToRadio?: (articleId?: string, lang?: Language) => void;
 }
 
 export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = ({
@@ -60,6 +61,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
   onLogout,
   initialArticleId = null,
   adSettings,
+  onGoToRadio,
 }) => {
   const [activeCategory, setActiveCategory] = useState<CategoryId>((activeCategoryProp as CategoryId) || 'all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -306,6 +308,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
         onOpenOmbudsman={() => setShowOmbudsmanModal(true)}
         onOpenWpXmlExtractor={() => setShowWpXmlModal(true)}
         onOpenAdminDesk={onOpenAdminDesk}
+        onOpenRadio={() => onGoToRadio?.()}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSelectKeyword={(kw) => {
@@ -356,6 +359,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
               handleSelectCategory(catId as CategoryId);
             }}
             adSettings={adSettings}
+            onGoToRadio={(artId, l) => onGoToRadio?.(artId, l)}
           />
         </main>
       ) : (

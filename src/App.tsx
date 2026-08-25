@@ -7,7 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { KoreaCultureJournalPage } from './pages/KoreaCultureJournalPage';
 import { AmpMobilePage } from './pages/AmpMobilePage';
 import { SubNewsAppPage } from './pages/SubNewsAppPage';
-import { Zap, Newspaper, Lock, UserCheck, LogOut, Globe2 } from 'lucide-react';
+import { KcjRadioPage } from './pages/KcjRadioPage';
+import { Zap, Newspaper, Lock, UserCheck, LogOut, Globe2, Radio } from 'lucide-react';
 import { AuthUser, Reporter, Article, CulturalEvent, CategoryTab, AdSettings, PopupConfig } from './types';
 import { CATEGORY_TABS } from './data/mockNews';
 import { AdminDeskModal } from './components/AdminDeskModal';
@@ -28,12 +29,17 @@ import {
   savePersistedPopupConfig
 } from './utils/storage';
 
-export type ViewMode = 'standard' | 'amp_mobile' | 'sub_news';
+export type ViewMode = 'standard' | 'amp_mobile' | 'sub_news' | 'kcj_radio';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/sub-news')) {
-      return 'sub_news';
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/kcj-radio')) {
+        return 'kcj_radio';
+      }
+      if (window.location.pathname.startsWith('/sub-news')) {
+        return 'sub_news';
+      }
     }
     return 'standard';
   });
@@ -50,7 +56,9 @@ export default function App() {
   // Sync browser back/forward buttons with view modes
   useEffect(() => {
     const handlePopState = () => {
-      if (window.location.pathname.startsWith('/sub-news')) {
+      if (window.location.pathname.startsWith('/kcj-radio')) {
+        setViewMode('kcj_radio');
+      } else if (window.location.pathname.startsWith('/sub-news')) {
         setViewMode('sub_news');
       } else {
         setViewMode('standard');
@@ -126,6 +134,18 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleGoToRadio = (articleId?: string, lang?: string) => {
+    setViewMode('kcj_radio');
+    let url = '/kcj-radio';
+    const params = new URLSearchParams();
+    if (articleId) params.set('article', articleId);
+    if (lang) params.set('lang', lang);
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+    window.history.pushState(null, '', url);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleGoToPaperEdition = () => {
     setViewMode('standard');
     setActiveCategory('paper_edition');
@@ -146,12 +166,29 @@ export default function App() {
             </span>
             <span className="text-slate-600">|</span>
             <span className="text-[11px] text-amber-200/90 font-serif-kr">
-              {viewMode === 'sub_news' ? 'SUB NEWS · 분야별 심층 포털' : '부산, 아00245 · 정론직필'}
+              {viewMode === 'kcj_radio' 
+                ? 'KCJ RADIO · 디지털 실시간 기사 방송국' 
+                : viewMode === 'sub_news' 
+                ? 'SUB NEWS · 분야별 심층 포털' 
+                : '부산, 아00245 · 정론직필'}
             </span>
           </div>
 
-          {/* Right: Sub News Toggle, AMP Mobile, Paper Edition, and CMS Desk Login */}
+          {/* Right: Radio, Sub News Toggle, AMP Mobile, Paper Edition, and CMS Desk Login */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* KCJ Radio Button */}
+            <button
+              onClick={() => handleGoToRadio()}
+              className={`px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
+                viewMode === 'kcj_radio'
+                  ? 'bg-gradient-to-r from-amber-400 to-red-500 text-slate-950 font-black ring-2 ring-amber-300'
+                  : 'bg-gradient-to-r from-amber-600/80 to-red-600/80 hover:from-amber-500 hover:to-red-500 text-white'
+              }`}
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>📻 KCJ Radio</span>
+            </button>
+
             {/* Dual Channel Switcher: Sub News App vs Main News App */}
             {viewMode === 'sub_news' ? (
               <button
@@ -170,8 +207,8 @@ export default function App() {
               </button>
             )}
 
-            {/* AMP Mobile Toggle Button (Main news only - per user rule: Sub News has no AMP) */}
-            {viewMode !== 'sub_news' && (
+            {/* AMP Mobile Toggle Button (Main news only) */}
+            {viewMode !== 'sub_news' && viewMode !== 'kcj_radio' && (
               <button
                 onClick={() => setViewMode(viewMode === 'amp_mobile' ? 'standard' : 'amp_mobile')}
                 className={`px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
@@ -186,7 +223,7 @@ export default function App() {
             )}
 
             {/* Paper Edition Direct Link Button */}
-            {viewMode !== 'sub_news' && (
+            {viewMode !== 'sub_news' && viewMode !== 'kcj_radio' && (
               <button
                 onClick={handleGoToPaperEdition}
                 className={`px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
@@ -203,9 +240,14 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main View: Sub News App OR AMP Mobile View OR Standard Press View */}
+      {/* Main View: KCJ Radio OR Sub News App OR AMP Mobile View OR Standard Press View */}
       <div className="flex-1">
-        {viewMode === 'sub_news' ? (
+        {viewMode === 'kcj_radio' ? (
+          <KcjRadioPage
+            articles={articles}
+            onBackToJournal={handleGoToMainNews}
+          />
+        ) : viewMode === 'sub_news' ? (
           <SubNewsAppPage
             articles={articles}
             onUpdateArticles={setArticles}
@@ -238,6 +280,7 @@ export default function App() {
             onOpenAuthModal={() => setShowAuthModal(true)}
             onLogout={() => setCurrentUser(null)}
             adSettings={adSettings}
+            onGoToRadio={handleGoToRadio}
           />
         )}
       </div>

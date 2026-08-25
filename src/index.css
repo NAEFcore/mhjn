@@ -32,3 +32,18 @@
   background-image: radial-gradient(#e5e2da 0.75px, transparent 0.75px);
   background-size: 12px 12px;
 }
+
+/* Audio visualizer wave bar animations */
+@keyframes eqBarPulse {
+  0%, 100% {
+    height: 15%;
+  }
+  50% {
+    height: 98%;
+  }
+}
+
+.animate-eq-bar {
+  animation: eqBarPulse 1.2s ease-in-out infinite alternate;
+}
+
