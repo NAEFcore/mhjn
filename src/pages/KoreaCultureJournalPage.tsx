@@ -18,12 +18,15 @@ import { EditorialColumnModal } from '../components/EditorialColumnModal';
 import { OmbudsmanModal } from '../components/OmbudsmanModal';
 import { WpXmlConverterModal } from '../components/WpXmlConverterModal';
 import { NewsTipModal } from '../components/NewsTipModal';
+import { IssueDetailModal } from '../components/IssueDetailModal';
 import { ArticleDetailPage } from './ArticleDetailPage';
 import { UnSdgPage } from './UnSdgPage';
 import { Footer } from '../components/Footer';
 
 import { CATEGORY_TABS } from '../data/mockNews';
-import { Article, CategoryId, Reporter, CulturalEvent, AuthUser, Language } from '../types';
+import { Article, CategoryId, Reporter, CulturalEvent, AuthUser, Language, AdSettings, IssueCluster } from '../types';
+import { loadPersistedIssueClusters } from '../utils/storage';
+
 
 interface KoreaCultureJournalPageProps {
   articles: Article[];
@@ -37,7 +40,9 @@ interface KoreaCultureJournalPageProps {
   currentUser: AuthUser | null;
   onOpenAdminDesk?: () => void;
   onOpenAuthModal?: () => void;
+  onLogout?: () => void;
   initialArticleId?: string | null;
+  adSettings?: AdSettings;
 }
 
 export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = ({
@@ -52,12 +57,16 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
   currentUser,
   onOpenAdminDesk,
   onOpenAuthModal,
+  onLogout,
   initialArticleId = null,
+  adSettings,
 }) => {
   const [activeCategory, setActiveCategory] = useState<CategoryId>((activeCategoryProp as CategoryId) || 'all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
   const [lang, setLang] = useState<Language>('ko');
+  const [isLoadingArticle, setIsLoadingArticle] = useState(false);
+  const [articleNotFound, setArticleNotFound] = useState(false);
 
   // Selected Article for Standalone Detail Page (Requirement 1 & 2)
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(() => {
@@ -73,19 +82,84 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
     return null;
   });
 
+  // Direct URL resolution (/article/:id) across incognito / new browsers
+  useEffect(() => {
+    const resolveArticleFromUrl = async () => {
+      const path = window.location.pathname;
+      const match = path.match(/\/article\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        const articleId = match[1];
+        const localFound = articles.find((a) => a.id === articleId);
+        if (localFound) {
+          setSelectedArticle(localFound);
+          setArticleNotFound(false);
+          return;
+        }
+
+        // Fetch from server API if not found in current local state
+        setIsLoadingArticle(true);
+        try {
+          const res = await fetch(`/api/articles/${articleId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.article) {
+              setSelectedArticle(data.article);
+              setArticleNotFound(false);
+              // Merge into articles list
+              if (!articles.some(a => a.id === data.article.id)) {
+                onUpdateArticles([data.article, ...articles]);
+              }
+            } else {
+              setArticleNotFound(true);
+            }
+          } else {
+            setArticleNotFound(true);
+          }
+        } catch (err) {
+          console.error('Failed to load article from API:', err);
+          setArticleNotFound(true);
+        } finally {
+          setIsLoadingArticle(false);
+        }
+      } else if (path === '/un-sdg') {
+        setActiveCategory('un_sdg');
+        setSelectedArticle(null);
+      }
+    };
+
+    resolveArticleFromUrl();
+  }, [articles, onUpdateArticles]);
+
   // Sync with browser URL changes
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
       const match = path.match(/\/article\/([a-zA-Z0-9_-]+)/);
       if (match && match[1]) {
-        const found = articles.find((a) => a.id === match[1]);
-        if (found) setSelectedArticle(found);
+        const articleId = match[1];
+        const found = articles.find((a) => a.id === articleId);
+        if (found) {
+          setSelectedArticle(found);
+          setArticleNotFound(false);
+        } else {
+          fetch(`/api/articles/${articleId}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.article) {
+                setSelectedArticle(data.article);
+                setArticleNotFound(false);
+              } else {
+                setArticleNotFound(true);
+              }
+            })
+            .catch(() => setArticleNotFound(true));
+        }
       } else if (path === '/un-sdg') {
         setActiveCategory('un_sdg');
         setSelectedArticle(null);
       } else {
         setSelectedArticle(null);
+        setArticleNotFound(false);
       }
     };
 
@@ -144,6 +218,8 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
   const [showOmbudsmanModal, setShowOmbudsmanModal] = useState(false);
   const [showWpXmlModal, setShowWpXmlModal] = useState(false);
   const [showNewsTipModal, setShowNewsTipModal] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<IssueCluster | null>(null);
+  const [issueClusters, setIssueClusters] = useState<IssueCluster[]>(() => loadPersistedIssueClusters());
 
   // Toggle Bookmark
   const handleToggleBookmark = (articleId: string, e?: React.MouseEvent) => {
@@ -174,6 +250,8 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
 
   // Filtered Articles Logic
   const visibleArticles = articles.filter((art) => {
+    // Exclude articles configured solely for Sub-News
+    if (art.mainNewsEnabled === false) return false;
     if (!art.status || art.status === 'PUBLISHED') return true;
     if (currentUser?.role === 'EDITOR_IN_CHIEF') return true;
     if (currentUser?.reporterId && art.reporter.id === currentUser.reporterId) return true;
@@ -227,6 +305,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
         onOpenEditorial={() => setShowEditorialModal(true)}
         onOpenOmbudsman={() => setShowOmbudsmanModal(true)}
         onOpenWpXmlExtractor={() => setShowWpXmlModal(true)}
+        onOpenAdminDesk={onOpenAdminDesk}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSelectKeyword={(kw) => {
@@ -238,7 +317,30 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
       />
 
       {/* 2. Main Content: Article Detail Page if selected, else Newsroom Home */}
-      {selectedArticle ? (
+      {isLoadingArticle ? (
+        <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-16 text-center space-y-4 font-sans">
+          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <h3 className="text-base font-bold text-slate-800 font-serif-kr">기사를 안전하게 불러오는 중입니다...</h3>
+          <p className="text-xs text-slate-500">한국문화저널 디지털 뉴스 아카이브 연동 중</p>
+        </main>
+      ) : articleNotFound ? (
+        <main className="flex-1 w-full max-w-xl mx-auto px-4 py-20 text-center space-y-4 font-sans">
+          <div className="p-4 bg-amber-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto text-2xl">
+            📰
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 font-serif-kr">존재하지 않거나 삭제된 기사입니다</h3>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            입력하신 개별 기사 주소의 기사를 찾을 수 없습니다.<br />
+            주소가 정확한지 확인하시거나 아래 버튼을 통해 한국문화저널 메인으로 이동해 주세요.
+          </p>
+          <button
+            onClick={handleBackFromArticle}
+            className="px-5 py-2.5 bg-[#1b2a47] hover:bg-[#25375c] text-white font-bold text-xs rounded-xl shadow-xs transition-all"
+          >
+            한국문화저널 홈으로 가기
+          </button>
+        </main>
+      ) : selectedArticle ? (
         <main className="flex-1 w-full">
           <ArticleDetailPage
             article={selectedArticle}
@@ -249,7 +351,11 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
             lang={lang}
             onToggleLang={() => setLang(lang === 'ko' ? 'en' : 'ko')}
             allArticles={visibleArticles}
-            onOpenEditorial={() => setShowEditorialModal(true)}
+            onSelectCategory={(catId) => {
+              handleBackFromArticle();
+              handleSelectCategory(catId as CategoryId);
+            }}
+            adSettings={adSettings}
           />
         </main>
       ) : (
@@ -387,11 +493,15 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
 
                 {/* 2. Editorial & Opinion Sidebar Section under Ranking */}
                 <OpinionSidebarSection
-                  onOpenEditorialModal={() => setShowEditorialModal(true)}
+                  onSelectCategory={() => handleSelectCategory('opinion')}
+                  onSelectArticle={handleOpenArticle}
+                  articles={visibleArticles}
                 />
 
-                {/* 3. Issue Clustering (심층 묶음 뉴스) - Requirement 8: Clickable to open article */}
+                {/* 3. Issue Clustering (심층 묶음 뉴스) - Requirement: Clickable to open Issue Interactive Map & Clustered Articles */}
                 <IssueClustering
+                  issueClusters={issueClusters}
+                  onSelectIssue={(issue) => setSelectedIssue(issue)}
                   onSelectKeyword={(kw) => {
                     setSelectedKeyword(kw);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -401,6 +511,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
                     if (targetArt) handleOpenArticle(targetArt);
                   }}
                 />
+
 
                 {/* 4. Culture Radar (Exhibitions & Palace Openings) - Requirement 3: Dynamic Events */}
                 <CultureCalendarRadar
@@ -434,6 +545,10 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
         onOpenSdgPage={() => handleSelectCategory('un_sdg')}
         onOpenEditorial={() => setShowEditorialModal(true)}
         onOpenFactCheck={() => setShowFactCheckModal(true)}
+        onOpenAdminDesk={onOpenAdminDesk}
+        onOpenAuthModal={onOpenAuthModal}
+        currentUser={currentUser}
+        onLogout={onLogout}
       />
 
       {/* Modals & Dialogs */}
@@ -499,6 +614,21 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
           onClose={() => setShowNewsTipModal(false)}
         />
       )}
+
+      {/* Requirement: Issue Detail Modal with Interactive Map */}
+      {selectedIssue && (
+        <IssueDetailModal
+          issue={selectedIssue}
+          onClose={() => setSelectedIssue(null)}
+          articles={articles}
+          onSelectArticle={(articleId) => {
+            const targetArt = articles.find((a) => a.id === articleId);
+            if (targetArt) handleOpenArticle(targetArt);
+            setSelectedIssue(null);
+          }}
+        />
+      )}
     </div>
   );
 };
+

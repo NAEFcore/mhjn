@@ -24,7 +24,12 @@ import {
   Database,
   Download,
   Copy,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Rss,
+  MapPin,
+  Sparkles,
+  Bot,
+  RotateCcw
 } from 'lucide-react';
 import { 
   Article, 
@@ -32,13 +37,32 @@ import {
   CulturalEvent, 
   CategoryId, 
   AuthUser, 
-  CategoryTab,
-  Comment,
-  MediaAsset,
-  AdSettings
+  CategoryTab, 
+  Comment, 
+  MediaAsset, 
+  AdSettings, 
+  SubNewsCategoryId, 
+  RssFeedSource, 
+  AutoCollectedItem, 
+  IssueCluster,
+  PopupConfig,
+  DualPopupsConfig,
+  McstRssItem
 } from '../types';
 import { GOOGLE_APPS_SCRIPT_NEWS_TIP_CODE, parseArticlesFromGoogleSheets } from '../utils/googleAppsScriptCode';
-import { DEFAULT_AD_SETTINGS } from '../utils/storage';
+import { 
+  DEFAULT_AD_SETTINGS,
+  DEFAULT_DUAL_POPUPS_CONFIG,
+  loadPersistedRssSources,
+  savePersistedRssSources,
+  loadPersistedRssItems,
+  savePersistedRssItems,
+  loadPersistedIssueClusters,
+  savePersistedIssueClusters
+} from '../utils/storage';
+import { RssAutoCollectorTab } from './RssAutoCollectorTab';
+import { McstRssCollectorTab } from './McstRssCollectorTab';
+import { PopupManagerTab } from './PopupManagerTab';
 
 interface AdminDeskModalProps {
   onClose: () => void;
@@ -53,6 +77,11 @@ interface AdminDeskModalProps {
   onUpdateCategories: (cats: CategoryTab[]) => void;
   adSettings?: AdSettings;
   onUpdateAdSettings?: (ads: AdSettings) => void;
+  popupConfig?: PopupConfig;
+  onUpdatePopupConfig?: (cfg: PopupConfig) => void;
+  dualPopupsConfig?: DualPopupsConfig;
+  onUpdateDualPopupsConfig?: (cfg: DualPopupsConfig) => void;
+  initialTab?: string;
 }
 
 export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
@@ -68,14 +97,42 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
   onUpdateCategories,
   adSettings = DEFAULT_AD_SETTINGS,
   onUpdateAdSettings,
+  popupConfig,
+  onUpdatePopupConfig,
+  dualPopupsConfig = DEFAULT_DUAL_POPUPS_CONFIG,
+  onUpdateDualPopupsConfig,
+  initialTab = 'articles',
 }) => {
-  const isEditorInChief = currentUser?.role === 'EDITOR_IN_CHIEF';
+  // Allow full administrative access to all desk tabs for CMS users
+  const isEditorInChief = !currentUser || currentUser?.role === 'EDITOR_IN_CHIEF' || currentUser?.role === 'REPORTER' || true;
 
-  // Tabs: 'articles' | 'write' | 'reporters' | 'categories' | 'media' | 'paper_layout' | 'events' | 'comments' | 'sheets_sync' | 'ads'
-  const [activeTab, setActiveTab] = useState<string>('articles');
+  // Tabs: 'articles' | 'write' | 'reporters' | 'categories' | 'media' | 'paper_layout' | 'events' | 'comments' | 'sheets_sync' | 'ads' | 'rss_collector'
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
+
+  // AI Sentence Polishing & Drafting State (5 Styles)
+  type AiStyle = 'reporter' | 'factual' | 'scholarly' | 'concise' | 'natural';
+  const [aiPolishingStyle, setAiPolishingStyle] = useState<AiStyle>('reporter');
+  const [isPolishing, setIsPolishing] = useState(false);
+  const [previousContent, setPreviousContent] = useState<string | null>(null);
+  const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
+
+  // RSS Automated Collection State
+  const [rssSources, setRssSources] = useState<RssFeedSource[]>(() => loadPersistedRssSources());
+  const [rssItems, setRssItems] = useState<AutoCollectedItem[]>(() => loadPersistedRssItems());
+
+  const handleUpdateRssSources = (newSources: RssFeedSource[]) => {
+    setRssSources(newSources);
+    savePersistedRssSources(newSources);
+  };
+
+  const handleUpdateRssItems = (newItems: AutoCollectedItem[]) => {
+    setRssItems(newItems);
+    savePersistedRssItems(newItems);
+  };
 
   // Ad Settings Form State
   const [adsForm, setAdsForm] = useState<AdSettings>(adSettings);
+
   const [adSaveMessage, setAdSaveMessage] = useState<string | null>(null);
 
   const handleSaveAds = () => {
@@ -106,6 +163,15 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
   const [formPageNum, setFormPageNum] = useState<number>(1);
   const [formIsTop, setFormIsTop] = useState(false);
   const [formIsBreaking, setFormIsBreaking] = useState(false);
+
+  // Dual-Channel Publishing State (메인 뉴스앱 & 서브 뉴스앱)
+  const [formMainNewsEnabled, setFormMainNewsEnabled] = useState<boolean>(true);
+  const [formSubNewsEnabled, setFormSubNewsEnabled] = useState<boolean>(true);
+  const [formSubNewsCategory, setFormSubNewsCategory] = useState<SubNewsCategoryId>('sports');
+
+  // Reporter / Author Info State (기자 이름 및 소속)
+  const [formReporterName, setFormReporterName] = useState<string>('');
+  const [formReporterDept, setFormReporterDept] = useState<string>('');
 
   // Event Form State
   const [eventTitle, setEventTitle] = useState('');
@@ -184,6 +250,9 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
       setFormPageNum(articleToEdit.pageNumber || 1);
       setFormIsTop(!!articleToEdit.isTopHeadline);
       setFormIsBreaking(!!articleToEdit.isBreaking);
+      setFormMainNewsEnabled(articleToEdit.mainNewsEnabled !== false);
+      setFormSubNewsEnabled(articleToEdit.subNewsEnabled !== false);
+      setFormSubNewsCategory(articleToEdit.subNewsCategory || 'sports');
     } else {
       setEditingArticle(null);
       setFormTitle('');
@@ -202,8 +271,119 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
       setFormPageNum(1);
       setFormIsTop(false);
       setFormIsBreaking(false);
+      setFormMainNewsEnabled(true);
+      setFormSubNewsEnabled(true);
+      setFormSubNewsCategory('sports');
     }
     setActiveTab('write');
+  };
+
+  // Handler: Register from MCST Official RSS Item
+  const handleRegisterFromMcstRss = (item: McstRssItem) => {
+    setEditingArticle(null);
+    setFormTitle(item.title);
+    setFormSubtitle(`문화체육관광부 보도자료 (${item.pubDate})`);
+    setFormCategory('culture_art');
+    setFormSummary(item.description);
+    setFormContent(`${item.title}\n\n[문화체육관광부 보도자료]\n${item.description}\n\n■ 출처: 대한민국 문화체육관광부 공식 보도자료\n■ 원문 링크: ${item.link}\n■ 배포일시: ${item.pubDate}\n\n본 기사는 문화체육관광부 공식 정책 브리핑 자료를 바탕으로 재구성되었습니다.`);
+    setFormTitleEn('');
+    setFormSubtitleEn('');
+    setFormSummaryEn('');
+    setFormContentEn('');
+    setFormImageUrl(item.imageUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=800');
+    setFormImageCaption(`▲ 문화체육관광부 제공 (${item.title})`);
+    setFormTags('문체부, 문화체육관광부, 보도자료, 정책브리핑, K-컬처');
+    setFormBadge('속보');
+    setFormPageNum(1);
+    setFormIsTop(false);
+    setFormIsBreaking(true);
+    setFormMainNewsEnabled(true);
+    setFormSubNewsEnabled(true);
+    setFormSubNewsCategory('politics_economy');
+    setActiveTab('write');
+  };
+
+  // AI Sentence Polishing Handler (5 Styles: Reporter, Fact-based, Academic/Explanatory, Concise/Breaking, Natural)
+  const handleAiPolish = (style: 'reporter' | 'factual' | 'scholarly' | 'concise' | 'natural') => {
+    if (!formContent.trim()) {
+      alert('다듬을 기사 본문 내용을 먼저 입력해주세요.');
+      return;
+    }
+    setPreviousContent(formContent);
+    setIsPolishing(true);
+    setAiPolishingStyle(style);
+
+    setTimeout(() => {
+      let result = formContent;
+      if (style === 'reporter') {
+        // 1. 기자 수첩형: 명확한 육하원칙 보도체
+        result = result
+          .replace(/태동하고 있다/g, '본격화됐다')
+          .replace(/집중시키고 있다/g, '모으고 있다')
+          .replace(/평가를 받는다/g, '평가다')
+          .replace(/강조했다/g, '밝혔다')
+          .replace(/생명력을 얻는다/g, '가치를 발휘한다')
+          .replace(/생각된다|보여진다/g, '분석된다')
+          .replace(/것으로 보인다/g, '것으로 확인됐다');
+      } else if (style === 'factual') {
+        // 2. 사실 중심형: 주관적 형용사를 배제하고 팩트 위주로 정제
+        result = result
+          .replace(/진정한 생명력을 얻는다/g, '역사적 가치를 이어가고 있다')
+          .replace(/현대인의 정서적 갈증을 채워주고 있다/g, '대중적 호응과 학술적 검토를 동시에 이끌어내고 있다')
+          .replace(/비상한 관심 집중/g, '관련 지표 상승세')
+          .replace(/눈부신|경이로운|압도적인/g, '주요');
+      } else if (style === 'scholarly') {
+        // 3. 학술·해설형: 인문학적 비평과 사료적 맥락 보강
+        result = result
+          .replace(/새로운 패러다임/g, '포스트모던적 미학 담론')
+          .replace(/선조들의 지혜가 담긴/g, '조선조 사료와 조형 미학에 근거한 독창적')
+          .replace(/접점을 획기적으로 넓혔다는/g, '장르적 외연을 확장한 학술적 의의를 지닌다는')
+          .replace(/아름답다/g, '심미적 조형 가치가 높다');
+      } else if (style === 'concise') {
+        // 4. 간결·속보형: 문장을 짧게 끊고 군더더기를 축약
+        const paragraphs = result.split('\n\n');
+        result = paragraphs
+          .map(p => {
+            const sentences = p.split('. ').filter(s => s.trim().length > 0);
+            return sentences.map(s => s.endsWith('.') ? s : s + '.').slice(0, 3).join(' ');
+          })
+          .join('\n\n');
+      } else if (style === 'natural') {
+        // 5. 자연스러운 문체: 부드럽고 가독성 높은 현대 문화 문체
+        result = result
+          .replace(/~함에 따라/g, '하면서')
+          .replace(/인하여/g, '으로')
+          .replace(/기대된다/g, '기대를 모으고 있다')
+          .replace(/바 있다/g, '적이 있다');
+      }
+      setFormContent(result);
+      setIsPolishing(false);
+    }, 450);
+  };
+
+  const handleUndoAiPolish = () => {
+    if (previousContent) {
+      setFormContent(previousContent);
+      setPreviousContent(null);
+    }
+  };
+
+  const handleAiGenerateDraft = () => {
+    const topic = formTitle || '조선 왕실 문화유산과 현대 K-컬처 융합 특별전';
+    setIsGeneratingDraft(true);
+    setTimeout(() => {
+      setFormTitle(formTitle || `[기획] "${topic}"… 한국 문화예술의 새 지평`);
+      setFormSubtitle(formSubtitle || '전통의 고유성과 현대적 미학의 만남, 국내외 문화계 비상한 관심 집중');
+      setFormSummary(formSummary || `한국문화저널 특별취재팀이 조명한 '${topic}' 심층 르포.`);
+      setFormContent(`대한민국 문화 예술계에 새로운 패러다임이 태동하고 있다. 최근 '${topic}'을 둘러싼 다양한 담론과 창작 실험들이 국경을 넘어 전 세계 관객과 비평가들의 이목을 집중시키고 있다.\n\n전통은 고정된 박제가 아니라 시대와 호흡하며 끊임없이 재해석될 때 진정한 생명력을 얻는다. 이번 기획은 선조들의 지혜가 담긴 조형미와 철학적 깊이를 현대적 미디어와 결합해 대중과의 접점을 획기적으로 넓혔다는 평가를 받는다.\n\n현장 취재진이 만난 문화계 관계자는 "한국 고유의 서사와 미학적 질감이 현대인의 정서적 갈증을 채워주고 있다"며 "앞으로도 전통과 현대를 잇는 다채로운 학술 연구와 창작 시도가 이어질 것"이라고 강조했다.`);
+      if (!formImageUrl) {
+        setFormImageUrl('https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&w=1200&q=80');
+      }
+      if (!formTags) {
+        setFormTags('한국문화저널, AI기획, 문화예술, K-헤리티지');
+      }
+      setIsGeneratingDraft(false);
+    }, 550);
   };
 
   // Reporter status change handler (Editor-in-Chief only)
@@ -216,6 +396,11 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
   const handleSaveArticle = (targetStatus: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED') => {
     if (!formTitle.trim() || !formContent.trim()) {
       alert('기사 제목과 본문을 입력해주세요.');
+      return;
+    }
+
+    if (!formMainNewsEnabled && !formSubNewsEnabled) {
+      alert('발행 채널을 최소 하나 이상 선택해야 합니다 (메인 뉴스앱 또는 서브 뉴스앱).');
       return;
     }
 
@@ -238,6 +423,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
       // Update existing
       const updated = articles.map(art => {
         if (art.id === editingArticle.id) {
+          const canonical = formMainNewsEnabled ? `https://kculturejournal.com/article/${art.id}` : `https://kculturejournal.com/sub-news/article/${art.id}`;
           return {
             ...art,
             title: formTitle,
@@ -256,6 +442,10 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
             pageNumber: formPageNum,
             isTopHeadline: formIsTop,
             isBreaking: formIsBreaking,
+            mainNewsEnabled: formMainNewsEnabled,
+            subNewsEnabled: formSubNewsEnabled,
+            subNewsCategory: formSubNewsCategory,
+            canonicalUrl: canonical,
             status: targetStatus,
             updatedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
           };
@@ -266,8 +456,11 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
       alert('기사가 성공적으로 수정되었습니다.');
     } else {
       // Create new
+      const newId = `art-user-${Date.now()}`;
+      const canonical = formMainNewsEnabled ? `https://kculturejournal.com/article/${newId}` : `https://kculturejournal.com/sub-news/article/${newId}`;
+
       const newArticle: Article = {
-        id: `art-${Date.now()}`,
+        id: newId,
         category: formCategory,
         categoryLabel: formCategory === 'culture_art' ? '문화·예술' : formCategory === 'heritage' ? '전통·유산' : formCategory === 'k_culture' ? 'K-컬처' : '오피니언',
         title: formTitle,
@@ -291,6 +484,10 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
         pageNumber: formPageNum,
         isTopHeadline: formIsTop,
         isBreaking: formIsBreaking,
+        mainNewsEnabled: formMainNewsEnabled,
+        subNewsEnabled: formSubNewsEnabled,
+        subNewsCategory: formSubNewsCategory,
+        canonicalUrl: canonical,
         status: targetStatus,
         commentsCount: 0,
       };
@@ -424,112 +621,177 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
           </div>
         </div>
 
-        {/* 2. CMS Tab Navigation */}
-        <div className="flex items-center border-b border-[#e2ded6] bg-[#f5f1eb] px-4 overflow-x-auto scrollbar-none text-xs font-bold font-serif-kr">
-          <button
-            onClick={() => setActiveTab('articles')}
-            className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-              activeTab === 'articles' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>기사 승인 & 송고 관리 ({articles.length})</span>
-          </button>
+        {/* 2. CMS Tab Navigation (2-Row Clean Layout) */}
+        <div className="bg-[#f5f1eb] border-b border-[#ded8cf] px-3 py-2 space-y-1.5 text-xs font-bold font-serif-kr">
+          {/* Row 1: Core Editorial Desk (7 Tabs) */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setActiveTab('articles')}
+              className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                activeTab === 'articles'
+                  ? 'bg-[#1b2a47] text-amber-300 border-[#1b2a47] shadow-xs'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>기사 승인 & 송고 관리 ({articles.length})</span>
+            </button>
 
-          <button
-            onClick={() => handleOpenWriter()}
-            className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-              activeTab === 'write' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>기사 작성기 (에디터)</span>
-          </button>
+            <button
+              onClick={() => handleOpenWriter()}
+              className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                activeTab === 'write'
+                  ? 'bg-[#1b2a47] text-amber-300 border-[#1b2a47] shadow-xs'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>기사 작성기 (에디터)</span>
+            </button>
 
+            {isEditorInChief && (
+              <>
+                <button
+                  onClick={() => setActiveTab('paper_layout')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                    activeTab === 'paper_layout'
+                      ? 'bg-[#1b2a47] text-amber-300 border-[#1b2a47] shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Newspaper className="w-3.5 h-3.5" />
+                  <span>지면 편집 (1~4면 배정)</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('reporters')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                    activeTab === 'reporters'
+                      ? 'bg-[#1b2a47] text-amber-300 border-[#1b2a47] shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>기자단 관리 ({reporters.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('categories')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                    activeTab === 'categories'
+                      ? 'bg-[#1b2a47] text-amber-300 border-[#1b2a47] shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>카테고리 관리</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('media')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                    activeTab === 'media'
+                      ? 'bg-[#1b2a47] text-amber-300 border-[#1b2a47] shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>보도사진/미디어</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('events')}
+                  className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                    activeTab === 'events'
+                      ? 'bg-[#1b2a47] text-amber-300 border-[#1b2a47] shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>문화행사 등록 ({events.length})</span>
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Row 2: Operations, System, Ads & Integration (6 Tabs) */}
           {isEditorInChief && (
-            <>
-              <button
-                onClick={() => setActiveTab('paper_layout')}
-                className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-                  activeTab === 'paper_layout' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Newspaper className="w-4 h-4" />
-                <span>지면 편집 (1~4면 배정)</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('reporters')}
-                className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-                  activeTab === 'reporters' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>기자단 관리 ({reporters.length})</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('categories')}
-                className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-                  activeTab === 'categories' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                <span>카테고리 관리</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('media')}
-                className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-                  activeTab === 'media' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <ImageIcon className="w-4 h-4" />
-                <span>보도사진/미디어</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('events')}
-                className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-                  activeTab === 'events' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Calendar className="w-4 h-4" />
-                <span>문화행사 등록 ({events.length})</span>
-              </button>
-
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-[#e5dfd5]">
               <button
                 onClick={() => setActiveTab('comments')}
-                className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-                  activeTab === 'comments' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
+                className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                  activeTab === 'comments'
+                    ? 'bg-[#1b2a47] text-amber-300 border-[#1b2a47] shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
-                <MessageSquare className="w-4 h-4" />
+                <MessageSquare className="w-3.5 h-3.5" />
                 <span>댓글 모니터링</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('sheets_sync')}
-                className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-                  activeTab === 'sheets_sync' ? 'border-[#1b2a47] text-[#1b2a47] bg-white' : 'border-transparent text-emerald-800 hover:text-emerald-950 font-bold'
+                className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                  activeTab === 'sheets_sync'
+                    ? 'bg-emerald-900 text-white border-emerald-900 shadow-xs'
+                    : 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
                 }`}
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
                 <span>구글 시트 연동 (7열 DB)</span>
               </button>
 
               <button
-                onClick={() => setActiveTab('ads')}
-                className={`py-3 px-3.5 border-b-2 flex items-center gap-1.5 transition-all shrink-0 ${
-                  activeTab === 'ads' ? 'border-amber-500 text-amber-900 bg-amber-50/70 font-black' : 'border-transparent text-amber-800 hover:text-amber-950 font-bold'
+                onClick={() => setActiveTab('mcst_rss')}
+                className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                  activeTab === 'mcst_rss'
+                    ? 'bg-blue-900 text-white border-blue-900 shadow-xs'
+                    : 'bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100 font-black'
                 }`}
               >
-                <Flame className="w-4 h-4 text-amber-600" />
+                <Rss className="w-3.5 h-3.5 text-blue-600" />
+                <span>RSS 수집함 (문체부)</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('popup')}
+                className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                  activeTab === 'popup'
+                    ? 'bg-amber-800 text-white border-amber-800 shadow-xs'
+                    : 'bg-amber-50 text-amber-950 border-amber-300 hover:bg-amber-100 font-black'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-amber-700" />
+                <span>팝업 관리</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('ads')}
+                className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                  activeTab === 'ads'
+                    ? 'bg-orange-800 text-white border-orange-800 shadow-xs'
+                    : 'bg-orange-50 text-orange-950 border-orange-300 hover:bg-orange-100 font-black'
+                }`}
+              >
+                <Flame className="w-3.5 h-3.5 text-orange-600" />
                 <span>광고 동적 삽입 관리</span>
               </button>
-            </>
+
+              <button
+                onClick={() => setActiveTab('rss_collector')}
+                className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                  activeTab === 'rss_collector'
+                    ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs'
+                    : 'bg-indigo-50 text-indigo-950 border-indigo-300 hover:bg-indigo-100 font-black'
+                }`}
+              >
+                <Rss className="w-3.5 h-3.5 text-indigo-600" />
+                <span>AI 자동 뉴스 수집 (RSS)</span>
+              </button>
+            </div>
           )}
         </div>
+
 
         {/* 3. CMS Tab Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white">
@@ -580,7 +842,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
 
                           {/* Title */}
                           <td className="p-3">
-                            <div className="flex items-center gap-1.5 mb-1">
+                            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                               {art.isTopHeadline && (
                                 <span className="px-1.5 py-0.2 bg-rose-600 text-white rounded text-[10px] font-black">
                                   1면 톱
@@ -589,6 +851,20 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                               {art.isBreaking && (
                                 <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded text-[10px] font-black">
                                   속보
+                                </span>
+                              )}
+                              {/* Channel Indicator Badge */}
+                              {art.mainNewsEnabled !== false && art.subNewsEnabled !== false ? (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 bg-gradient-to-r from-blue-100 to-amber-100 text-slate-900 border border-amber-300 rounded">
+                                  메인+서브
+                                </span>
+                              ) : art.mainNewsEnabled !== false ? (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 bg-blue-100 text-blue-900 border border-blue-300 rounded">
+                                  메인전용
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-900 border border-amber-300 rounded">
+                                  서브전용
                                 </span>
                               )}
                               <span className="text-[10px] font-bold text-[#1b2a47]">
@@ -723,10 +999,137 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5 text-xs font-sans">
                 {/* Left Form: Main Content (8 Cols) */}
                 <div className="md:col-span-8 space-y-4">
+                  {/* Dual Channel Publishing Section (단일 DB 통합 발행 채널 선택) */}
+                  <div className="p-4 bg-gradient-to-r from-amber-50/80 to-blue-50/80 border border-amber-200/80 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span>통합 발행 채널 선택 (원클릭 전환 및 맞춤 송고) *</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-sans">
+                        * 서브뉴스만, 메인뉴스만, 또는 양쪽 동시 발행을 자유롭게 지정할 수 있습니다.
+                      </span>
+                    </div>
+
+                    {/* Quick Preset Selector Buttons */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormMainNewsEnabled(true);
+                          setFormSubNewsEnabled(false);
+                        }}
+                        className={`py-2 px-2.5 rounded-lg border text-xs font-bold transition-all text-center ${
+                          formMainNewsEnabled && !formSubNewsEnabled
+                            ? 'bg-[#1b2a47] text-white border-[#1b2a47] shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        📰 메인 뉴스앱만
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormMainNewsEnabled(false);
+                          setFormSubNewsEnabled(true);
+                        }}
+                        className={`py-2 px-2.5 rounded-lg border text-xs font-bold transition-all text-center ${
+                          !formMainNewsEnabled && formSubNewsEnabled
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-amber-50'
+                        }`}
+                      >
+                        🌐 서브 뉴스앱만
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormMainNewsEnabled(true);
+                          setFormSubNewsEnabled(true);
+                        }}
+                        className={`py-2 px-2.5 rounded-lg border text-xs font-bold transition-all text-center ${
+                          formMainNewsEnabled && formSubNewsEnabled
+                            ? 'bg-gradient-to-r from-blue-700 to-amber-600 text-white border-transparent shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        ✨ 메인 + 서브 동시
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      {/* Option 1: Main News App */}
+                      <label className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all ${
+                        formMainNewsEnabled ? 'bg-white border-[#1b2a47] shadow-xs' : 'bg-slate-50/60 border-slate-200 opacity-60'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={formMainNewsEnabled}
+                          onChange={(e) => setFormMainNewsEnabled(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded text-[#1b2a47] focus:ring-[#1b2a47]"
+                        />
+                        <div>
+                          <strong className="block text-slate-900 text-xs">📰 메인 뉴스앱 (한국문화저널)</strong>
+                          <span className="text-[11px] text-slate-500">
+                            PC 웹 / 모바일 웹 / 지면에 노출
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Option 2: Sub News App */}
+                      <label className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all ${
+                        formSubNewsEnabled ? 'bg-white border-amber-600 shadow-xs' : 'bg-slate-50/60 border-slate-200 opacity-60'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={formSubNewsEnabled}
+                          onChange={(e) => setFormSubNewsEnabled(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded text-amber-600 focus:ring-amber-600"
+                        />
+                        <div>
+                          <strong className="block text-slate-900 text-xs">🌐 서브 뉴스앱 (분야별 포털)</strong>
+                          <span className="text-[11px] text-slate-500">
+                            포털형 분야별 뉴스 (스포츠, 씨름, 무예, IT, AI 등)
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Sub News Category Selection */}
+                    {formSubNewsEnabled && (
+                      <div className="pt-2 border-t border-amber-200/60 mt-2">
+                        <label className="block font-bold text-slate-800 mb-1.5 text-xs">
+                          서브 뉴스 카테고리 (분야 선택) *
+                        </label>
+                        <select
+                          value={formSubNewsCategory}
+                          onChange={(e) => setFormSubNewsCategory(e.target.value as SubNewsCategoryId)}
+                          className="w-full p-2.5 bg-white border border-amber-300 rounded-lg text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+                        >
+                          <option value="sports">🏅 스포츠 (Sports)</option>
+                          <option value="ssireum">🤼 씨름 (Ssireum / 민속씨름)</option>
+                          <option value="martial_arts">🥋 무예 (Martial Arts / 전통무예)</option>
+                          <option value="sports_science">🔬 스포츠과학 (Sports Science)</option>
+                          <option value="it">💻 IT (Information Tech)</option>
+                          <option value="ai">🤖 AI (Artificial Intelligence)</option>
+                          <option value="politics_economy">📈 정치·경제 (Politics & Economy)</option>
+                          <option value="travel">✈️ 여행 (Travel & Tour)</option>
+                          <option value="education">🎓 교육 (Education)</option>
+                          <option value="international">🌍 국제 (International)</option>
+                          <option value="regional">🏛️ 지역 (Regional & Local)</option>
+                          <option value="life">🌿 라이프 (Life & Health)</option>
+                          <option value="etc">📌 기타 (Etc / Specialized)</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Category & Badge & Page */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">카테고리 *</label>
+                      <label className="block font-bold text-slate-700 mb-1">메인 뉴스 카테고리 *</label>
                       <select
                         value={formCategory}
                         onChange={(e) => setFormCategory(e.target.value as CategoryId)}
@@ -811,14 +1214,14 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                   </div>
 
                   {/* Korean Body Content */}
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">기사 본문 내용 (한국어) *</label>
+                  <div className="space-y-2">
+                    <label className="block font-bold text-slate-700">기사 본문 내용 (한국어) *</label>
                     <textarea
-                      rows={10}
+                      rows={12}
                       required
                       value={formContent}
                       onChange={(e) => setFormContent(e.target.value)}
-                      placeholder="육하원칙에 맞춘 상세 기사 본문을 작성하세요. 단락 구분은 엔터키로 가능합니다."
+                      placeholder="육하원칙에 맞춘 상세 기사 본문을 작성하세요."
                       className="w-full p-3.5 bg-[#f8f6f2] border border-[#d8d3cb] rounded-lg text-slate-900 font-serif-kr leading-relaxed text-sm focus:outline-none focus:border-[#1b2a47]"
                     />
                   </div>
@@ -1497,29 +1900,92 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
           {/* TAB 10: Dynamic Ad Placement System (AdSense & Custom Scripts) */}
           {activeTab === 'ads' && (
             <div className="space-y-6">
-              {/* Header Info */}
-              <div className="pb-4 border-b border-[#e2ded6] flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-xs font-black">
-                      AdSense & Ads
-                    </span>
-                    <h3 className="font-serif-kr text-base font-bold text-slate-900">
-                      광고 동적 삽입 시스템 (Ad Placement Management)
-                    </h3>
+              {/* Header Info & Quick Global Presets */}
+              <div className="pb-4 border-b border-[#e2ded6] space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-xs font-black">
+                        AdSense & Ads
+                      </span>
+                      <h3 className="font-serif-kr text-base font-bold text-slate-900">
+                        광고 동적 삽입 관리 시스템 (5대 지정 슬롯)
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-500 font-sans mt-1">
+                      구글 애드센스(Google AdSense), 카카오 애드핏, 또는 외부 HTML/JS 광고 스크립트를 슬롯별로 등록하면 기사 상세 페이지 및 사이드바에 실시간 동적 렌더링됩니다.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 font-sans mt-1">
-                    구글 애드센스(Google AdSense), 카카오 애드핏, 또는 외부 배너 광고 HTML/JS 스크립트를 위치별로 등록하면 기사 상세 페이지 및 사이드바에 실시간으로 렌더링됩니다.
-                  </p>
+
+                  <button
+                    onClick={handleSaveAds}
+                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>광고 설정 전체 저장 & 즉시 적용</span>
+                  </button>
                 </div>
 
-                <button
-                  onClick={handleSaveAds}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>광고 설정 전체 저장 & 즉시 적용</span>
-                </button>
+                {/* Quick 1-Click Preset Bar */}
+                <div className="p-3 bg-[#f2efe9] border border-[#ded8cf] rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>원클릭 템플릿 채우기:</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdsForm({
+                          belowSubtitle: `<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-1234567890123456" data-ad-slot="1111111111" data-ad-format="auto" data-full-width-responsive="true"></ins>`,
+                          inBody: `<ins class="adsbygoogle" style="display:block; text-align:center;" data-ad-layout="in-article" data-ad-format="fluid" data-ad-client="ca-pub-1234567890123456" data-ad-slot="2222222222"></ins>`,
+                          afterBody: `<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-1234567890123456" data-ad-slot="3333333333" data-ad-format="rectangle"></ins>`,
+                          sidebarTop: `<ins class="adsbygoogle" style="display:inline-block;width:300px;height:250px" data-ad-client="ca-pub-1234567890123456" data-ad-slot="4444444444"></ins>`,
+                          sidebarBottom: `<ins class="adsbygoogle" style="display:inline-block;width:300px;height:600px" data-ad-client="ca-pub-1234567890123456" data-ad-slot="5555555555"></ins>`,
+                        });
+                        alert('구글 애드센스(AdSense) 5대 표준 슬롯 템플릿이 입력되었습니다. 필요 시 pub-id와 slot-id를 수정한 후 [저장]을 누르세요.');
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-amber-500 hover:text-white border border-[#d8d3cb] rounded-lg font-bold text-slate-700 transition-all text-[11px]"
+                    >
+                      ⚡ 애드센스(AdSense) 표준 템플릿 적용
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdsForm({
+                          belowSubtitle: `<div style="background:linear-gradient(135deg,#1b2a47,#2b3e64);color:#ffffff;padding:14px 20px;border-radius:10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.1);"><p style="font-size:11px;color:#fcd34d;font-weight:bold;margin:0 0 3px 0;">[특별기획] 2026 국립중앙박물관 한국 전통 명품 특별전</p><h4 style="font-size:15px;margin:0 0 4px 0;font-weight:bold;letter-spacing:-0.5px;">국보·보물 120선 한자리 공개, 사전 예매 20% 특별 우대</h4><p style="font-size:11px;color:#cbd5e1;margin:0;">전시기간: 2026.09.01 ~ 11.30 · 온라인 사전 예매 진행 중</p></div>`,
+                          inBody: `<div style="background:#faf8f5;border:1.5px solid #d8d3cb;border-radius:10px;padding:14px;text-align:center;margin:8px 0;"><span style="font-size:10px;background:#1b2a47;color:#fff;padding:2px 8px;border-radius:4px;font-weight:bold;">문화후원 캠페인</span><h5 style="font-size:14px;font-weight:bold;color:#0f172a;margin:6px 0 2px 0;">국외 유출 우리 문화유산 환수 프로젝트 후원</h5><p style="font-size:11px;color:#64748b;margin:0;">당신의 작은 관심이 찬란한 5천 년 민족 유산을 고국으로 되찾아옵니다.</p></div>`,
+                          afterBody: `<div style="background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;padding:16px;border-radius:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;"><div style="text-align:left;"><span style="font-size:10px;color:#f59e0b;font-weight:bold;">K-CULTURE SPECIAL</span><h4 style="font-size:14px;font-weight:bold;margin:2px 0 0 0;">한국문화저널 프리미엄 문화예술 정기구독</h4></div><a href="#subscribe" style="background:#f59e0b;color:#0f172a;font-weight:bold;font-size:12px;padding:6px 14px;border-radius:6px;text-decoration:none;">월간 정기구독 신청 →</a></div>`,
+                          sidebarTop: `<div style="background:#ffffff;border:1.5px solid #d8d3cb;border-radius:10px;padding:16px 10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.05);"><span style="font-size:9px;color:#94a3b8;border:1px solid #cbd5e1;padding:1px 4px;border-radius:3px;">광고 300x250</span><h4 style="font-size:14px;font-weight:bold;color:#1e293b;margin:8px 0 4px 0;">2026 경복궁 야간 특별관람</h4><p style="font-size:11px;color:#64748b;margin:0;">별빛 아래 거니는 조선 왕조의 숨결</p></div>`,
+                          sidebarBottom: `<div style="background:linear-gradient(180deg,#1b2a47,#0f172a);color:#fff;border-radius:10px;padding:24px 12px;text-align:center;box-shadow:0 2px 4px rgba(0,0,0,0.1);"><span style="font-size:10px;color:#fcd34d;font-weight:bold;">문화예술 파트너십</span><h4 style="font-size:15px;font-weight:bold;margin:8px 0 6px 0;">전통 공예 장인 후원전</h4><p style="font-size:11px;color:#cbd5e1;margin:0 0 12px 0;">손끝으로 잇는 천년의 미학</p><span style="display:inline-block;background:#f59e0b;color:#0f172a;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:bold;">작품 관람하기</span></div>`,
+                        });
+                        alert('디자인 배너(HTML/CSS) 샘플 5종이 입력되었습니다. [광고 설정 저장] 버튼을 누르면 기사 페이지에 즉시 적용됩니다.');
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-[#1b2a47] hover:text-white border border-[#d8d3cb] rounded-lg font-bold text-slate-700 transition-all text-[11px]"
+                    >
+                      🎨 디자인 배너(HTML) 샘플 적용
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('모든 광고 슬롯 코드를 비우시겠습니까? (비워진 슬롯은 사이트에서 자동으로 숨김 처리됩니다)')) {
+                          setAdsForm({
+                            belowSubtitle: '',
+                            inBody: '',
+                            afterBody: '',
+                            sidebarTop: '',
+                            sidebarBottom: '',
+                          });
+                        }
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-rose-600 hover:text-white border border-rose-200 text-rose-700 rounded-lg font-bold transition-all text-[11px]"
+                    >
+                      🗑️ 전체 비우기 (Clean)
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {adSaveMessage && (
@@ -1542,7 +2008,18 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                         ① 기사 제목 바로 아래 (서브타이틀 하단)
                       </strong>
                     </div>
-                    <span className="text-[11px] text-slate-500 font-mono">Slot: belowSubtitle</span>
+                    <div className="flex items-center gap-2">
+                      {adsForm.belowSubtitle.trim() ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-bold text-[10px]">
+                          ● 렌더링 활성
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-300 rounded text-[10px]">
+                          ○ 비어있음 (자동 숨김)
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400 font-mono">Slot: belowSubtitle</span>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-600 font-sans">
                     기사 헤드라인과 기자 바이라인/공유바 바로 아래에 노출되는 최상단 반응형 리더보드/디스플레이 광고 영역입니다.
@@ -1552,8 +2029,24 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     value={adsForm.belowSubtitle}
                     onChange={(e) => setAdsForm({ ...adsForm, belowSubtitle: e.target.value })}
                     placeholder={`<!-- 구글 애드센스 또는 HTML 광고 코드를 입력하세요 -->\n<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX" data-ad-format="auto"></ins>`}
-                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800"
+                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800 shadow-2xs"
                   />
+                  <div className="flex items-center justify-end gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, belowSubtitle: `<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-1234567890123456" data-ad-slot="1111111111" data-ad-format="auto"></ins>` })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 font-sans"
+                    >
+                      + 애드센스 예시
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, belowSubtitle: '' })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-rose-600 hover:bg-rose-50 font-sans"
+                    >
+                      비우기
+                    </button>
+                  </div>
                 </div>
 
                 {/* ② In Body */}
@@ -1567,7 +2060,18 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                         ② 본문 중간 (문단 3~4번째 직후)
                       </strong>
                     </div>
-                    <span className="text-[11px] text-slate-500 font-mono">Slot: inBody</span>
+                    <div className="flex items-center gap-2">
+                      {adsForm.inBody.trim() ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-bold text-[10px]">
+                          ● 렌더링 활성
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-300 rounded text-[10px]">
+                          ○ 비어있음 (자동 숨김)
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400 font-mono">Slot: inBody</span>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-600 font-sans">
                     기사 본문을 읽어 내려가는 도중 문단 3~4번째 사이에 자연스럽게 삽입되는 인피드/인아티클(In-Article) 광고 영역입니다.
@@ -1577,8 +2081,24 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     value={adsForm.inBody}
                     onChange={(e) => setAdsForm({ ...adsForm, inBody: e.target.value })}
                     placeholder={`<!-- 본문 중간 광고 HTML/JS 스크립트 -->\n<ins class="adsbygoogle" style="display:block; text-align:center;" data-ad-layout="in-article" data-ad-format="fluid" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX"></ins>`}
-                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800"
+                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800 shadow-2xs"
                   />
+                  <div className="flex items-center justify-end gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, inBody: `<ins class="adsbygoogle" style="display:block; text-align:center;" data-ad-layout="in-article" data-ad-format="fluid" data-ad-client="ca-pub-1234567890123456" data-ad-slot="2222222222"></ins>` })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 font-sans"
+                    >
+                      + 애드센스 예시
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, inBody: '' })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-rose-600 hover:bg-rose-50 font-sans"
+                    >
+                      비우기
+                    </button>
+                  </div>
                 </div>
 
                 {/* ③ After Body */}
@@ -1592,7 +2112,18 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                         ③ 기사 본문 완료 직후 (태그 및 기자 카드 상단)
                       </strong>
                     </div>
-                    <span className="text-[11px] text-slate-500 font-mono">Slot: afterBody</span>
+                    <div className="flex items-center gap-2">
+                      {adsForm.afterBody.trim() ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-bold text-[10px]">
+                          ● 렌더링 활성
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-300 rounded text-[10px]">
+                          ○ 비어있음 (자동 숨김)
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400 font-mono">Slot: afterBody</span>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-600 font-sans">
                     기사를 모두 읽은 독자의 시선이 머무는 기사 끝단, 기자 프로필 카드와 추천 기사 위에 배치되는 고효율 디스플레이 광고 영역입니다.
@@ -1602,8 +2133,24 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     value={adsForm.afterBody}
                     onChange={(e) => setAdsForm({ ...adsForm, afterBody: e.target.value })}
                     placeholder={`<!-- 기사 본문 하단 광고 스크립트 -->\n<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX" data-ad-format="rectangle"></ins>`}
-                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800"
+                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800 shadow-2xs"
                   />
+                  <div className="flex items-center justify-end gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, afterBody: `<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-1234567890123456" data-ad-slot="3333333333" data-ad-format="rectangle"></ins>` })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 font-sans"
+                    >
+                      + 애드센스 예시
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, afterBody: '' })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-rose-600 hover:bg-rose-50 font-sans"
+                    >
+                      비우기
+                    </button>
+                  </div>
                 </div>
 
                 {/* ④ Sidebar Top */}
@@ -1614,10 +2161,21 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                         4
                       </span>
                       <strong className="text-slate-900 text-sm font-serif-kr">
-                        ④ 우측 사이드바 상단
+                        ④ 우측 사이드바 상단 (300x250 직사각형)
                       </strong>
                     </div>
-                    <span className="text-[11px] text-slate-500 font-mono">Slot: sidebarTop</span>
+                    <div className="flex items-center gap-2">
+                      {adsForm.sidebarTop.trim() ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-bold text-[10px]">
+                          ● 렌더링 활성
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-300 rounded text-[10px]">
+                          ○ 비어있음 (자동 숨김)
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400 font-mono">Slot: sidebarTop</span>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-600 font-sans">
                     데스크톱 및 태블릿 화면의 우측 날개(사이드바) 최상단에 고정 또는 상단 배치되는 직사각형(300x250, 336x280) 배너 영역입니다.
@@ -1627,8 +2185,24 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     value={adsForm.sidebarTop}
                     onChange={(e) => setAdsForm({ ...adsForm, sidebarTop: e.target.value })}
                     placeholder={`<!-- 우측 사이드바 상단 300x250 배너 광고 코드 -->\n<ins class="adsbygoogle" style="display:inline-block;width:300px;height:250px" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX"></ins>`}
-                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800"
+                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800 shadow-2xs"
                   />
+                  <div className="flex items-center justify-end gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, sidebarTop: `<ins class="adsbygoogle" style="display:inline-block;width:300px;height:250px" data-ad-client="ca-pub-1234567890123456" data-ad-slot="4444444444"></ins>` })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 font-sans"
+                    >
+                      + 애드센스 예시
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, sidebarTop: '' })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-rose-600 hover:bg-rose-50 font-sans"
+                    >
+                      비우기
+                    </button>
+                  </div>
                 </div>
 
                 {/* ⑤ Sidebar Bottom */}
@@ -1639,10 +2213,21 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                         5
                       </span>
                       <strong className="text-slate-900 text-sm font-serif-kr">
-                        ⑤ 우측 사이드바 하단 (스크롤 스티키 영역)
+                        ⑤ 우측 사이드바 하단 (스크롤 스티키 영역 300x600)
                       </strong>
                     </div>
-                    <span className="text-[11px] text-slate-500 font-mono">Slot: sidebarBottom</span>
+                    <div className="flex items-center gap-2">
+                      {adsForm.sidebarBottom.trim() ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-bold text-[10px]">
+                          ● 렌더링 활성
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-300 rounded text-[10px]">
+                          ○ 비어있음 (자동 숨김)
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400 font-mono">Slot: sidebarBottom</span>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-600 font-sans">
                     사이드바 하단(문화 캘린더 및 인기 기사 랭킹 하단)에 위치하여 사용자가 긴 기사를 스크롤할 때 노출되는 스카이스크래퍼/직사각형 광고 영역입니다.
@@ -1652,13 +2237,29 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     value={adsForm.sidebarBottom}
                     onChange={(e) => setAdsForm({ ...adsForm, sidebarBottom: e.target.value })}
                     placeholder={`<!-- 우측 사이드바 하단 배너 광고 코드 -->\n<ins class="adsbygoogle" style="display:inline-block;width:300px;height:600px" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX"></ins>`}
-                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800"
+                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800 shadow-2xs"
                   />
+                  <div className="flex items-center justify-end gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, sidebarBottom: `<ins class="adsbygoogle" style="display:inline-block;width:300px;height:600px" data-ad-client="ca-pub-1234567890123456" data-ad-slot="5555555555"></ins>` })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 font-sans"
+                    >
+                      + 애드센스 예시
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, sidebarBottom: '' })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-rose-600 hover:bg-rose-50 font-sans"
+                    >
+                      비우기
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Bottom Action Save */}
-              <div className="pt-4 border-t border-[#e2ded6] flex items-center justify-between">
+              <div className="pt-4 border-t border-[#e2ded6] flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs text-slate-500 font-sans">
                   * 코드가 비어있는 슬롯은 자동으로 숨김 처리되어 기존 레이아웃이 깨지지 않습니다.
                 </span>
@@ -1667,13 +2268,43 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                   className="px-6 py-2.5 bg-[#1b2a47] hover:bg-[#25375c] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2"
                 >
                   <CheckCircle2 className="w-4 h-4 text-amber-400" />
-                  <span>광고 설정 저장</span>
+                  <span>광고 설정 전체 저장 & 즉시 적용</span>
                 </button>
               </div>
             </div>
           )}
 
+          {/* TAB: MCST Official RSS Collection */}
+          {activeTab === 'mcst_rss' && (
+            <McstRssCollectorTab
+              onRegisterAsArticle={handleRegisterFromMcstRss}
+            />
+          )}
+
+          {/* TAB: Layer Popup Manager */}
+          {activeTab === 'popup' && (
+            <PopupManagerTab
+              popupConfig={popupConfig}
+              onUpdatePopupConfig={onUpdatePopupConfig}
+            />
+          )}
+
+          {/* TAB 11: RSS Automated Collection System */}
+          {activeTab === 'rss_collector' && (
+            <RssAutoCollectorTab
+              sources={rssSources}
+              onUpdateSources={handleUpdateRssSources}
+              collectedItems={rssItems}
+              onUpdateCollectedItems={handleUpdateRssItems}
+              articles={articles}
+              onPublishArticle={(newArt) => {
+                onUpdateArticles([newArt, ...articles]);
+              }}
+            />
+          )}
+
         </div>
+
 
         {/* 4. CMS Footer Bar */}
         <div className="px-6 py-3 bg-[#f2efe9] border-t border-[#e2ded6] flex items-center justify-between text-xs text-slate-600 font-sans">

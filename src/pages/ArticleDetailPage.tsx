@@ -30,13 +30,15 @@ import {
   ExternalLink,
   Loader2
 } from 'lucide-react';
-import { Article, Comment, ReactionType, Language } from '../types';
+import { Article, Comment, ReactionType, Language, AdSettings, IssueCluster } from '../types';
 import { MOCK_COMMENTS } from '../data/mockNews';
 import { RankingSection } from '../components/RankingSection';
 import { OpinionSidebarSection } from '../components/OpinionSidebarSection';
 import { IssueClustering } from '../components/IssueClustering';
+import { IssueDetailModal } from '../components/IssueDetailModal';
 import { EditorialColumnModal } from '../components/EditorialColumnModal';
 import { McstPressReleaseSidebar } from '../components/McstPressReleaseSidebar';
+import { DynamicAdBanner } from '../components/DynamicAdBanner';
 import { translateArticleToEnglish, TranslatedArticleData } from '../utils/translator';
 
 interface ArticleDetailPageProps {
@@ -49,6 +51,8 @@ interface ArticleDetailPageProps {
   onToggleLang: () => void;
   allArticles: Article[];
   onOpenEditorial?: () => void;
+  onSelectCategory?: (catId: string) => void;
+  adSettings?: AdSettings;
 }
 
 export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
@@ -61,11 +65,14 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
   onToggleLang,
   allArticles,
   onOpenEditorial,
+  onSelectCategory,
+  adSettings,
 }) => {
   const isEn = lang === 'en';
 
   // Editorial modal state (if opened internally)
   const [showEditorialModal, setShowEditorialModal] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<IssueCluster | null>(null);
 
   // Typography font size state
   const [fontSize, setFontSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
@@ -636,6 +643,13 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
           </div>
         </header>
 
+        {/* Ad Slot 1: Below Subtitle / Byline */}
+        <DynamicAdBanner
+          adCode={adSettings?.belowSubtitle}
+          slotName="belowSubtitle"
+          slotLabel="광고: 기사 제목/부제목 하단"
+        />
+
         {/* Real TTS Player Bar (Web Speech API) */}
         <div className="bg-[#1b2a47] text-white rounded-2xl p-4 shadow-md flex flex-wrap items-center justify-between gap-4 border border-[#2d3e5f]">
           <div className="flex items-center gap-3">
@@ -781,16 +795,34 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
               fontSize === 'large' ? 'text-lg sm:text-xl' : fontSize === 'xlarge' ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg'
             }`}
           >
-            {displayContent.split('\n\n').map((paragraph, index) => {
+            {displayContent.split('\n\n').map((paragraph, index, arr) => {
               if (!paragraph.trim()) return null;
+              // In-body ad insertion: after paragraph 2 (3rd paragraph) or halfway if fewer paragraphs
+              const insertAdHere = index === 2 || (arr.length <= 2 && index === arr.length - 1);
               return (
-                <p key={index} className="tracking-normal whitespace-pre-line text-justify">
-                  {paragraph}
-                </p>
+                <React.Fragment key={index}>
+                  <p className="tracking-normal whitespace-pre-line text-justify">
+                    {paragraph}
+                  </p>
+                  {insertAdHere && (
+                    <DynamicAdBanner
+                      adCode={adSettings?.inBody}
+                      slotName="inBody"
+                      slotLabel="광고: 기사 본문 중간 (3~4번째 문단 직후)"
+                    />
+                  )}
+                </React.Fragment>
               );
             })}
           </div>
         )}
+
+        {/* Ad Slot 3: After Body */}
+        <DynamicAdBanner
+          adCode={adSettings?.afterBody}
+          slotName="afterBody"
+          slotLabel="광고: 기사 본문 완료 직후"
+        />
 
         {/* Tags */}
         {displayTags && displayTags.length > 0 && (
@@ -1151,6 +1183,13 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
 
       {/* Right Column (4 Cols): Follows on scroll (Sticky) on Desktop; Located under Back Button on Mobile */}
       <aside className="lg:col-span-4 lg:self-start lg:sticky lg:top-14 space-y-6">
+        {/* Ad Slot 4: Sidebar Top */}
+        <DynamicAdBanner
+          adCode={adSettings?.sidebarTop}
+          slotName="sidebarTop"
+          slotLabel="광고: 사이드바 상단"
+        />
+
         {/* 1. Real-time Rankings */}
         <RankingSection
           articles={allArticles}
@@ -1159,14 +1198,23 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
 
         {/* 2. Editorial & Opinion Sidebar Section */}
         <OpinionSidebarSection
-          onOpenEditorialModal={() => {
-            if (onOpenEditorial) onOpenEditorial();
-            else setShowEditorialModal(true);
+          onSelectCategory={(cat) => {
+            if (onSelectCategory) {
+              onSelectCategory(cat);
+            } else {
+              onBack();
+            }
           }}
+          onSelectArticle={(art) => {
+            onSelectRelatedArticle(art);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          articles={allArticles}
         />
 
         {/* 3. Key Issues at This Hour */}
         <IssueClustering
+          onSelectIssue={(iss) => setSelectedIssue(iss)}
           onSelectKeyword={(kw) => {
             onBack();
           }}
@@ -1180,6 +1228,13 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
 
         {/* 4. MCST Official Press Releases (문체부 공식 보도자료 - Detail page sidebar bottom only) */}
         <McstPressReleaseSidebar />
+
+        {/* Ad Slot 5: Sidebar Bottom */}
+        <DynamicAdBanner
+          adCode={adSettings?.sidebarBottom}
+          slotName="sidebarBottom"
+          slotLabel="광고: 사이드바 하단"
+        />
       </aside>
     </div>
   </div>
@@ -1187,6 +1242,22 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
   {/* Editorial Column Modal */}
   {showEditorialModal && (
     <EditorialColumnModal onClose={() => setShowEditorialModal(false)} />
+  )}
+
+  {/* Key Issue Interactive Map & Clustered Articles Modal */}
+  {selectedIssue && (
+    <IssueDetailModal
+      issue={selectedIssue}
+      onClose={() => setSelectedIssue(null)}
+      articles={allArticles}
+      onSelectArticle={(articleId) => {
+        const targetArt = allArticles.find((a) => a.id === articleId);
+        if (targetArt) {
+          onSelectRelatedArticle(targetArt);
+        }
+        setSelectedIssue(null);
+      }}
+    />
   )}
 </div>
 );

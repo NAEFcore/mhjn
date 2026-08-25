@@ -15,23 +15,27 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { Article, CategoryId } from '../types';
-import { INITIAL_ARTICLES, CATEGORY_TABS } from '../data/mockNews';
+import { CATEGORY_TABS } from '../data/mockNews';
+import { loadPersistedArticles } from '../utils/storage';
 
 interface AmpMobilePageProps {
+  articles?: Article[];
   onBackToStandard: () => void;
   onOpenPaperEdition: () => void;
 }
 
 export const AmpMobilePage: React.FC<AmpMobilePageProps> = ({
+  articles: articlesProp,
   onBackToStandard,
   onOpenPaperEdition,
 }) => {
-  const [articles] = useState<Article[]>(INITIAL_ARTICLES);
+  const articles = articlesProp && articlesProp.length > 0 ? articlesProp : loadPersistedArticles();
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
-  const topArticle = articles.find(a => a.isTopHeadline) || articles[0];
-  const listArticles = articles.filter(a => a.id !== topArticle.id);
+  const publishedArticles = articles.filter(a => !a.status || a.status === 'PUBLISHED');
+  const topArticle = publishedArticles.find(a => a.isTopHeadline) || publishedArticles[0];
+  const listArticles = publishedArticles.filter(a => a.id !== topArticle?.id);
 
   const filteredArticles = activeCategory === 'all' 
     ? listArticles 

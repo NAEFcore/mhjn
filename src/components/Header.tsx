@@ -17,7 +17,9 @@ import {
   ShieldCheck,
   Feather,
   Scale,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Settings,
+  Lock
 } from 'lucide-react';
 import { CategoryId } from '../types';
 import { CATEGORY_TABS, ISSUE_CLUSTERS } from '../data/mockNews';
@@ -36,6 +38,7 @@ interface HeaderProps {
   onOpenEditorial: () => void;
   onOpenOmbudsman: () => void;
   onOpenWpXmlExtractor?: () => void;
+  onOpenAdminDesk?: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onSelectKeyword: (kw: string) => void;
@@ -57,6 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenEditorial,
   onOpenOmbudsman,
   onOpenWpXmlExtractor,
+  onOpenAdminDesk,
   searchQuery,
   onSearchChange,
   onSelectKeyword,

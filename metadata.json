@@ -1,6 +1,6 @@
 {
   "name": "IATPC 문화 & 한국문화저널",
-  "description": "IATPC 문화 글로벌 예술문화 포털 및 독립 연계된 대한민국 문화·예술 전문 신문 한국문화저널",
+  "description": "한국문화저널 정론직필 디지털 뉴스룸 및 분야별 서브뉴스 포털, 광고 동적 삽입 시스템, 편집국 통합 CMS 데스크",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
