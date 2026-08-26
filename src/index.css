@@ -47,3 +47,158 @@
   animation: eqBarPulse 1.2s ease-in-out infinite alternate;
 }
 
+/* Rich Editorial Article Body Styles (WordPress HTML & Rich News Body) */
+.article-rich-body {
+  word-break: break-word;
+}
+
+.article-rich-body p {
+  margin-bottom: 1.5rem;
+  line-height: 2;
+  text-align: justify;
+}
+
+.article-rich-body h1,
+.article-rich-body h2,
+.article-rich-body h3,
+.article-rich-body h4,
+.article-rich-body h5,
+.article-rich-body h6 {
+  font-family: 'Noto Serif KR', 'Nanum Myeongjo', Georgia, serif;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+
+.article-rich-body h1 {
+  font-size: 1.75rem;
+  margin-top: 2.25rem;
+  margin-bottom: 1rem;
+}
+
+.article-rich-body h2 {
+  font-size: 1.45rem;
+  margin-top: 2.25rem;
+  margin-bottom: 1rem;
+  border-left: 4px solid #1b2a47;
+  padding-left: 0.75rem;
+}
+
+.article-rich-body h3 {
+  font-size: 1.25rem;
+  margin-top: 2rem;
+  margin-bottom: 0.875rem;
+  color: #1b2a47;
+}
+
+.article-rich-body h4 {
+  font-size: 1.15rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  color: #1e293b;
+}
+
+.article-rich-body h5,
+.article-rich-body h6 {
+  font-size: 1.05rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #334155;
+}
+
+.article-rich-body figure {
+  margin: 1.75rem 0;
+  width: 100%;
+}
+
+.article-rich-body figure img,
+.article-rich-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin: 0 auto;
+  display: block;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+}
+
+.article-rich-body figcaption {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
+  font-style: italic;
+  margin-top: 0.5rem;
+  font-family: 'Noto Serif KR', 'Nanum Myeongjo', Georgia, serif;
+}
+
+.article-rich-body a {
+  color: #0051a8;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.15s ease;
+}
+
+.article-rich-body a:hover {
+  color: #002d62;
+}
+
+.article-rich-body ul {
+  list-style-type: disc;
+  padding-left: 1.75rem;
+  margin: 1.25rem 0 1.5rem 0;
+  space-y: 0.5rem;
+}
+
+.article-rich-body ol {
+  list-style-type: decimal;
+  padding-left: 1.75rem;
+  margin: 1.25rem 0 1.5rem 0;
+  space-y: 0.5rem;
+}
+
+.article-rich-body li {
+  margin-bottom: 0.5rem;
+  line-height: 1.8;
+}
+
+.article-rich-body blockquote {
+  border-left: 4px solid #1b2a47;
+  background-color: #f8fafc;
+  padding: 1rem 1.25rem;
+  border-radius: 0 0.5rem 0.5rem 0;
+  margin: 1.75rem 0;
+  font-style: italic;
+  color: #334155;
+}
+
+.article-rich-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.75rem 0;
+  font-size: 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.article-rich-body th {
+  background-color: #f1f5f9;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #e2e8f0;
+  font-weight: 700;
+  text-align: left;
+}
+
+.article-rich-body td {
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #e2e8f0;
+}
+
+.article-rich-body hr {
+  margin: 2rem 0;
+  border: none;
+  border-top: 1px solid #e2e8f0;
+}
+

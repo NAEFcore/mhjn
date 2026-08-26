@@ -145,7 +145,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
 
   // Sync with browser URL changes
   useEffect(() => {
-    const handlePopState = () => {
+    const handlePopState = async () => {
       const path = window.location.pathname;
       const match = path.match(/\/article\/([a-zA-Z0-9_-]+)/);
       if (match && match[1]) {
@@ -155,6 +155,17 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
           setSelectedArticle(found);
           setArticleNotFound(false);
         } else {
+          try {
+            const firestoreArticle = await fetchArticleByIdFromFirestore(articleId);
+            if (firestoreArticle) {
+              setSelectedArticle(firestoreArticle);
+              setArticleNotFound(false);
+              return;
+            }
+          } catch (e) {
+            console.warn('Popstate firestore fetch error:', e);
+          }
+
           fetch(`/api/articles/${articleId}`)
             .then(res => res.json())
             .then(data => {
@@ -455,7 +466,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
 
             {/* Middle 2-Column: Left (News Feed) & Right (Rankings, Editorial Opinion, Issues, Culture Radar) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              {/* Left Column (8 Cols): Section Highlights & In-Depth Stories */}
+              {/* Left Column (8 Cols): Section Highlights & In-Depth Stories (Each Section in 2-Column Grid, 2 Rows max) */}
               <div className="lg:col-span-8 space-y-8">
                 {/* Cultural Arts Highlights */}
                 <SectionArticleGrid
@@ -465,6 +476,9 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
                   onSelectArticle={handleOpenArticle}
                   bookmarkedIds={bookmarkedIds}
                   onToggleBookmark={handleToggleBookmark}
+                  columns={2}
+                  maxItems={4}
+                  onViewMore={() => handleSelectCategory('culture_art')}
                 />
 
                 {/* Heritage & Tradition Section */}
@@ -475,6 +489,9 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
                   onSelectArticle={handleOpenArticle}
                   bookmarkedIds={bookmarkedIds}
                   onToggleBookmark={handleToggleBookmark}
+                  columns={2}
+                  maxItems={4}
+                  onViewMore={() => handleSelectCategory('heritage')}
                 />
 
                 {/* K-Culture & Pop Story */}
@@ -485,6 +502,9 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
                   onSelectArticle={handleOpenArticle}
                   bookmarkedIds={bookmarkedIds}
                   onToggleBookmark={handleToggleBookmark}
+                  columns={2}
+                  maxItems={4}
+                  onViewMore={() => handleSelectCategory('k_culture')}
                 />
 
                 {/* Global News Section (Requirement 12) */}
@@ -495,6 +515,9 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
                   onSelectArticle={handleOpenArticle}
                   bookmarkedIds={bookmarkedIds}
                   onToggleBookmark={handleToggleBookmark}
+                  columns={2}
+                  maxItems={4}
+                  onViewMore={() => handleSelectCategory('global_news')}
                 />
               </div>
 

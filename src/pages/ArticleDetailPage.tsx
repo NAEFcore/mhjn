@@ -39,6 +39,7 @@ import { IssueDetailModal } from '../components/IssueDetailModal';
 import { EditorialColumnModal } from '../components/EditorialColumnModal';
 import { McstPressReleaseSidebar } from '../components/McstPressReleaseSidebar';
 import { DynamicAdBanner } from '../components/DynamicAdBanner';
+import { ArticleBodyRenderer } from '../components/ArticleBodyRenderer';
 import { translateArticleToEnglish, TranslatedArticleData } from '../utils/translator';
 import { Radio } from 'lucide-react';
 
@@ -822,31 +823,21 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
           </div>
         ) : (
           <div 
-            className={`font-serif-kr text-slate-900 leading-loose space-y-6 pt-2 transition-opacity duration-300 ${
+            className={`pt-2 transition-opacity duration-300 ${
               isTranslating ? 'opacity-70' : 'opacity-100'
-            } ${
-              fontSize === 'large' ? 'text-lg sm:text-xl' : fontSize === 'xlarge' ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg'
             }`}
           >
-            {displayContent.split('\n\n').map((paragraph, index, arr) => {
-              if (!paragraph.trim()) return null;
-              // In-body ad insertion: after paragraph 2 (3rd paragraph) or halfway if fewer paragraphs
-              const insertAdHere = index === 2 || (arr.length <= 2 && index === arr.length - 1);
-              return (
-                <React.Fragment key={index}>
-                  <p className="tracking-normal whitespace-pre-line text-justify">
-                    {paragraph}
-                  </p>
-                  {insertAdHere && (
-                    <DynamicAdBanner
-                      adCode={adSettings?.inBody}
-                      slotName="inBody"
-                      slotLabel="광고: 기사 본문 중간 (3~4번째 문단 직후)"
-                    />
-                  )}
-                </React.Fragment>
-              );
-            })}
+            <ArticleBodyRenderer
+              content={displayContent}
+              fontSize={fontSize}
+              adComponent={
+                <DynamicAdBanner
+                  adCode={adSettings?.inBody}
+                  slotName="inBody"
+                  slotLabel="광고: 기사 본문 중간 (3~4번째 문단 직후)"
+                />
+              }
+            />
           </div>
         )}
 

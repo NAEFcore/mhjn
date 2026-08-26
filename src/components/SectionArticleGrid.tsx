@@ -9,6 +9,9 @@ interface SectionArticleGridProps {
   onSelectArticle: (article: Article) => void;
   bookmarkedIds: Set<string>;
   onToggleBookmark: (articleId: string, e: React.MouseEvent) => void;
+  columns?: 1 | 2 | 3;
+  maxItems?: number;
+  onViewMore?: () => void;
 }
 
 export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
@@ -18,6 +21,9 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
   onSelectArticle,
   bookmarkedIds,
   onToggleBookmark,
+  columns = 2,
+  maxItems,
+  onViewMore,
 }) => {
   if (articles.length === 0) {
     return (
@@ -28,6 +34,14 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
       </div>
     );
   }
+
+  const displayedArticles = maxItems ? articles.slice(0, maxItems) : articles;
+
+  const gridClass = columns === 1
+    ? 'grid grid-cols-1 gap-4'
+    : columns === 2
+    ? 'grid grid-cols-1 sm:grid-cols-2 gap-4.5'
+    : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5';
 
   return (
     <section className="my-6">
@@ -41,14 +55,24 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
             <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
           )}
         </div>
-        <span className="text-xs text-gray-500 font-semibold">
-          총 {articles.length}건
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500 font-semibold">
+            총 {articles.length}건
+          </span>
+          {onViewMore && articles.length > (maxItems || 0) && (
+            <button
+              onClick={onViewMore}
+              className="text-xs font-bold text-[#0051a8] hover:underline"
+            >
+              더보기 &gt;
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Article Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {articles.map((article) => {
+      <div className={gridClass}>
+        {displayedArticles.map((article) => {
           const isSaved = bookmarkedIds.has(article.id);
 
           return (

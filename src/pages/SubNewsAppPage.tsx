@@ -25,9 +25,7 @@ import {
 } from 'lucide-react';
 import { Article, Reporter, AuthUser, SubNewsCategoryId, AdSettings, Language } from '../types';
 import { SUB_NEWS_CATEGORIES } from '../data/mockNews';
-import { DynamicAdBanner } from '../components/DynamicAdBanner';
 import { ArticleDetailPage } from './ArticleDetailPage';
-import { OpinionSidebarSection } from '../components/OpinionSidebarSection';
 
 interface SubNewsAppPageProps {
   articles: Article[];
@@ -408,7 +406,7 @@ export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
                           </p>
                         )}
                         <p className="text-xs text-slate-600 font-sans line-clamp-2 leading-relaxed">
-                          {headlineArticle.summary || headlineArticle.content.slice(0, 150)}
+                          {headlineArticle.summary || headlineArticle.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150)}
                         </p>
                       </div>
 
@@ -473,19 +471,6 @@ export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
                       ))}
                     </div>
                   </div>
-
-                  {/* Opinion & Column Section in Sub News Sidebar */}
-                  <OpinionSidebarSection
-                    articles={articles}
-                    onSelectArticle={handleOpenArticle}
-                  />
-
-                  {/* Ad slot in sidebar */}
-                  <DynamicAdBanner
-                    adCode={adSettings?.sidebarTop}
-                    slotName="sidebarTop"
-                    slotLabel="광고: 서브뉴스 사이드바"
-                  />
                 </div>
               </div>
             )}

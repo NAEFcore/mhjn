@@ -125,6 +125,7 @@ export function articleToFirestoreDoc(article: Article): Record<string, any> {
     subNewsCategory: article.subNewsCategory || 'sports',
     sourceName: article.sourceName || '',
     sourceUrl: article.sourceUrl || '',
+    importSource: article.importSource || '',
   };
 }
 
@@ -141,6 +142,13 @@ export function firestoreDocToArticle(docData: any, docId: string): Article {
   const updatedAt = docData.updatedAt || createdAt;
   const status = docData.status || 'PUBLISHED';
   const category = (docData.category || 'culture_art') as CategoryId;
+  const importSource = docData.importSource || (
+    docData.sourceName === 'WordPress Import' || 
+    articleId.startsWith('art-wp-') || 
+    docId.startsWith('art-wp-') 
+      ? 'wordpress' 
+      : undefined
+  );
 
   return {
     id: articleId,
@@ -194,6 +202,7 @@ export function firestoreDocToArticle(docData: any, docId: string): Article {
     subNewsCategory: (docData.subNewsCategory || 'sports') as SubNewsCategoryId,
     sourceName: docData.sourceName || undefined,
     sourceUrl: docData.sourceUrl || undefined,
+    importSource: importSource,
   };
 }
 
@@ -367,3 +376,97 @@ export function subscribeToFirestoreArticles(
     if (onError) onError(err);
   });
 }
+
+/**
+ * Get count and list of WordPress imported articles currently in Firestore
+ * Strictly filters ONLY WordPress imported articles and leaves manual/official articles intact.
+ */
+export async function getWordPressImportedArticles(): Promise<Article[]> {
+  try {
+    const articlesCol = collection(db, 'articles');
+    const snapshot = await getDocs(articlesCol);
+    if (snapshot.empty) return [];
+
+    const wpArticles: Article[] = [];
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const id = data.articleId || docSnap.id;
+      const isWp = data.importSource === 'wordpress' || 
+                   data.sourceName === 'WordPress Import' || 
+                   id.startsWith('art-wp-') || 
+                   docSnap.id.startsWith('art-wp-');
+      
+      // Ensure we NEVER delete standard demo articles (art-001 ~ art-008, etc.) or reporter manual articles
+      const isStandardDemo = /^art-00[1-9]$/.test(id) || /^art-01[0-9]$/.test(id);
+      if (isWp && !isStandardDemo) {
+        wpArticles.push(firestoreDocToArticle(data, docSnap.id));
+      }
+    });
+
+    return wpArticles;
+  } catch (err) {
+    console.error('Error fetching WP imported articles:', err);
+    return [];
+  }
+}
+
+/**
+ * Delete ONLY WordPress imported articles in chunked batches
+ * - Leaves standard/official/manual articles untouched
+ * - Updates live progress
+ * - Returns total deleted count
+ */
+export async function deleteWordPressImportedArticlesFromFirestore(
+  onProgress?: (deleted: number, total: number) => void
+): Promise<{ deletedCount: number; failedCount: number }> {
+  try {
+    const wpArticles = await getWordPressImportedArticles();
+    const total = wpArticles.length;
+    if (total === 0) {
+      return { deletedCount: 0, failedCount: 0 };
+    }
+
+    let deletedCount = 0;
+    let failedCount = 0;
+    const CHUNK_SIZE = 80;
+
+    for (let i = 0; i < total; i += CHUNK_SIZE) {
+      const chunk = wpArticles.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+
+      chunk.forEach(art => {
+        const docRef = doc(db, 'articles', art.id);
+        batch.delete(docRef);
+      });
+
+      try {
+        await batch.commit();
+        deletedCount += chunk.length;
+      } catch (batchErr) {
+        console.warn(`Batch delete failed at index ${i}, falling back to single delete:`, batchErr);
+        for (const art of chunk) {
+          try {
+            await deleteDoc(doc(db, 'articles', art.id));
+            deletedCount++;
+          } catch (singleErr) {
+            console.error(`Failed to delete doc ${art.id}:`, singleErr);
+            failedCount++;
+          }
+        }
+      }
+
+      if (onProgress) {
+        onProgress(deletedCount, total);
+      }
+
+      // Small yield to keep UI responsive
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+
+    return { deletedCount, failedCount };
+  } catch (err) {
+    console.error('Error in deleteWordPressImportedArticlesFromFirestore:', err);
+    throw err;
+  }
+}
+

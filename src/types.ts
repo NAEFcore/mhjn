@@ -145,6 +145,7 @@ export interface Article {
   canonicalUrl?: string; // Canonical URL for SEO deduplication
   sourceName?: string; // 원문 출처 매체명 (RSS / 취재원)
   sourceUrl?: string;  // 원문 링크 URL
+  importSource?: 'wordpress' | 'manual' | 'rss' | string; // 가져오기 출처 구분 (e.g. 'wordpress')
 }
 
 export interface CulturalEvent {

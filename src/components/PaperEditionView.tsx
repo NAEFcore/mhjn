@@ -136,7 +136,7 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({ onSelectArti
                 {/* Lead Text columns */}
                 <div className="text-xs font-serif-kr text-gray-800 leading-relaxed space-y-2">
                   <p className="first-letter:text-2xl first-letter:font-bold first-letter:float-left first-letter:mr-1">
-                    {art.content.slice(0, 350)}...
+                    {(art.summary || art.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 350)}...
                   </p>
                 </div>
 

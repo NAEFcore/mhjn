@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Article, Comment, ReactionType } from '../types';
 import { MOCK_COMMENTS, INITIAL_ARTICLES } from '../data/mockNews';
+import { ArticleBodyRenderer } from './ArticleBodyRenderer';
 
 interface ArticleDetailModalProps {
   article: Article;
@@ -645,13 +646,10 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({
           </div>
 
           {/* Article Full Text */}
-          <div className={`text-gray-900 font-serif-kr space-y-5 ${fontSizeClass}`}>
-            {article.content.split('\n\n').map((paragraph, idx) => (
-              <p key={idx} className="leading-relaxed tracking-tight text-justify">
-                {paragraph}
-              </p>
-            ))}
-          </div>
+          <ArticleBodyRenderer
+            content={article.content}
+            fontSize={fontSize}
+          />
 
           {/* Article Copyright / Reporter Desk Tag */}
           <div className="border-t border-b border-gray-200 py-4 text-xs text-gray-500 flex flex-wrap items-center justify-between gap-3 font-sans">

@@ -2329,6 +2329,9 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                 const updatedList = Array.from(existingMap.values());
                 onUpdateArticles(updatedList);
               }}
+              onArticlesPurged={(remainingArticles) => {
+                onUpdateArticles(remainingArticles);
+              }}
             />
           )}
 
