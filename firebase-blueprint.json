@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "Article": {
+      "title": "Article",
+      "description": "Korea Culture Journal and Sub-news articles",
+      "type": "object",
+      "properties": {
+        "articleId": { "type": "string" },
+        "category": { "type": "string" },
+        "koreanTitle": { "type": "string" },
+        "koreanBody": { "type": "string" },
+        "englishTitle": { "type": "string" },
+        "englishBody": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["articleId", "category", "koreanTitle", "koreanBody", "status"]
+    }
+  },
+  "firestore": {
+    "articles/{articleId}": {
+      "entity": "Article",
+      "description": "Collection of news articles"
+    }
+  }
+}

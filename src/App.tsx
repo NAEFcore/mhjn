@@ -28,6 +28,13 @@ import {
   loadPersistedPopupConfig,
   savePersistedPopupConfig
 } from './utils/storage';
+import { 
+  fetchArticlesFromFirestore, 
+  subscribeToFirestoreArticles, 
+  seedInitialArticlesIfEmpty,
+  saveArticlesBatchToFirestore,
+  deleteArticleFromFirestore
+} from './firebase';
 
 export type ViewMode = 'standard' | 'amp_mobile' | 'sub_news' | 'kcj_radio';
 
@@ -45,13 +52,47 @@ export default function App() {
   });
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  // Global State for Articles, Reporters, Events, Categories, Ads (persisted)
+  // Global State for Articles (backed by Firebase Cloud Firestore)
   const [articles, setArticlesState] = useState<Article[]>(() => loadPersistedArticles());
   const [reporters, setReportersState] = useState<Reporter[]>(() => loadPersistedReporters());
   const [events, setEventsState] = useState<CulturalEvent[]>(() => loadPersistedEvents());
   const [categories, setCategories] = useState<CategoryTab[]>(CATEGORY_TABS);
   const [adSettings, setAdSettingsState] = useState<AdSettings>(() => loadPersistedAdSettings());
   const [popupConfig, setPopupConfigState] = useState<PopupConfig>(() => loadPersistedPopupConfig());
+
+  // Firestore Realtime Subscription & Auto-Seeding
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const initFirestore = async () => {
+      try {
+        // 1. Check & Seed initial articles if empty in Firestore
+        const initial = await seedInitialArticlesIfEmpty();
+        if (initial && initial.length > 0) {
+          setArticlesState(initial);
+          savePersistedArticles(initial);
+        }
+
+        // 2. Realtime listener for cross-window & cross-device instant sync
+        unsubscribe = subscribeToFirestoreArticles((firestoreArticles) => {
+          if (firestoreArticles && firestoreArticles.length > 0) {
+            setArticlesState(firestoreArticles);
+            savePersistedArticles(firestoreArticles);
+          }
+        }, (err) => {
+          console.warn('Firestore subscription notice (using local cache):', err);
+        });
+      } catch (err) {
+        console.warn('Firestore initialization fallback:', err);
+      }
+    };
+
+    initFirestore();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   // Sync browser back/forward buttons with view modes
   useEffect(() => {
@@ -71,11 +112,25 @@ export default function App() {
   // Authentication State (default logged out or persisted)
   const [currentUser, setCurrentUserState] = useState<AuthUser | null>(() => loadPersistedUser());
 
-  // Wrap state updates with persistence
+  // Wrap state updates with persistence & Firestore sync
   const setArticles = (newArticles: Article[] | ((prev: Article[]) => Article[])) => {
     setArticlesState((prev) => {
       const next = typeof newArticles === 'function' ? newArticles(prev) : newArticles;
       savePersistedArticles(next);
+
+      // Detect deletions if any
+      const nextIds = new Set(next.map(a => a.id));
+      prev.forEach(p => {
+        if (!nextIds.has(p.id)) {
+          deleteArticleFromFirestore(p.id).catch(() => {});
+        }
+      });
+
+      // Batch save new/updated to Firestore
+      saveArticlesBatchToFirestore(next).catch(err => {
+        console.error('Failed to sync batch to Firestore:', err);
+      });
+
       return next;
     });
   };

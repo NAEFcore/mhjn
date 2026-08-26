@@ -26,6 +26,7 @@ import { Footer } from '../components/Footer';
 import { CATEGORY_TABS } from '../data/mockNews';
 import { Article, CategoryId, Reporter, CulturalEvent, AuthUser, Language, AdSettings, IssueCluster } from '../types';
 import { loadPersistedIssueClusters } from '../utils/storage';
+import { fetchArticleByIdFromFirestore } from '../firebase';
 
 
 interface KoreaCultureJournalPageProps {
@@ -98,16 +99,26 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
           return;
         }
 
-        // Fetch from server API if not found in current local state
+        // Fetch from Firestore directly for instant cross-device/incognito loading
         setIsLoadingArticle(true);
         try {
+          const firestoreArticle = await fetchArticleByIdFromFirestore(articleId);
+          if (firestoreArticle) {
+            setSelectedArticle(firestoreArticle);
+            setArticleNotFound(false);
+            if (!articles.some(a => a.id === firestoreArticle.id)) {
+              onUpdateArticles([firestoreArticle, ...articles]);
+            }
+            return;
+          }
+
+          // Fallback to server API if not found in Firestore yet
           const res = await fetch(`/api/articles/${articleId}`);
           if (res.ok) {
             const data = await res.json();
             if (data.article) {
               setSelectedArticle(data.article);
               setArticleNotFound(false);
-              // Merge into articles list
               if (!articles.some(a => a.id === data.article.id)) {
                 onUpdateArticles([data.article, ...articles]);
               }
@@ -118,7 +129,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
             setArticleNotFound(true);
           }
         } catch (err) {
-          console.error('Failed to load article from API:', err);
+          console.error('Failed to load article from Firestore/API:', err);
           setArticleNotFound(true);
         } finally {
           setIsLoadingArticle(false);

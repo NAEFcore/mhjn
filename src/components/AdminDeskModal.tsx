@@ -29,7 +29,8 @@ import {
   MapPin,
   Sparkles,
   Bot,
-  RotateCcw
+  RotateCcw,
+  FileCode
 } from 'lucide-react';
 import { 
   Article, 
@@ -63,6 +64,8 @@ import {
 import { RssAutoCollectorTab } from './RssAutoCollectorTab';
 import { McstRssCollectorTab } from './McstRssCollectorTab';
 import { PopupManagerTab } from './PopupManagerTab';
+import { WordPressImportTab } from './WordPressImportTab';
+import { saveArticleToFirestore, deleteArticleFromFirestore } from '../firebase';
 
 interface AdminDeskModalProps {
   onClose: () => void;
@@ -787,6 +790,18 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
               >
                 <Rss className="w-3.5 h-3.5 text-indigo-600" />
                 <span>AI 자동 뉴스 수집 (RSS)</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('wp_import')}
+                className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 shadow-2xs ${
+                  activeTab === 'wp_import'
+                    ? 'bg-amber-900 text-amber-300 border-amber-900 shadow-xs font-black'
+                    : 'bg-amber-50 text-amber-950 border-amber-300 hover:bg-amber-100 font-bold'
+                }`}
+              >
+                <FileCode className="w-3.5 h-3.5 text-amber-700" />
+                <span>WordPress 기사 가져오기 (XML)</span>
               </button>
             </div>
           )}
@@ -2299,6 +2314,20 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
               articles={articles}
               onPublishArticle={(newArt) => {
                 onUpdateArticles([newArt, ...articles]);
+              }}
+            />
+          )}
+
+          {/* TAB 12: WordPress Bulk XML Import */}
+          {activeTab === 'wp_import' && (
+            <WordPressImportTab
+              existingArticles={articles}
+              onImportComplete={(imported) => {
+                // Merge imported articles with current list
+                const existingMap = new Map(articles.map(a => [a.id, a]));
+                imported.forEach(a => existingMap.set(a.id, a));
+                const updatedList = Array.from(existingMap.values());
+                onUpdateArticles(updatedList);
               }}
             />
           )}
