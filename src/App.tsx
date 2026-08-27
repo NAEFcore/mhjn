@@ -301,6 +301,7 @@ export default function App() {
           <KcjRadioPage
             articles={articles}
             onBackToJournal={handleGoToMainNews}
+            adSettings={adSettings}
           />
         ) : viewMode === 'sub_news' ? (
           <SubNewsAppPage
@@ -313,6 +314,7 @@ export default function App() {
             onLogout={() => setCurrentUser(null)}
             onGoToMainNews={handleGoToMainNews}
             adSettings={adSettings}
+            onGoToRadio={handleGoToRadio}
           />
         ) : viewMode === 'amp_mobile' ? (
           <AmpMobilePage

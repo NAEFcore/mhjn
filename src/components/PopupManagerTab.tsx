@@ -35,7 +35,7 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
   const [selectedPopupIndex, setSelectedPopupIndex] = useState<'popup1' | 'popup2'>('popup1');
 
   // Interactive Live Tester Scope Selector
-  const [simulatedScope, setSimulatedScope] = useState<'main_home' | 'main_detail' | 'sub_home' | 'sub_detail'>('main_home');
+  const [simulatedScope, setSimulatedScope] = useState<PopupScopeTarget>('main_home');
 
   // Form state holding both popups
   const [form, setForm] = useState<DualPopupsConfig>(() => {
@@ -162,7 +162,7 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
         </div>
 
         {/* Scope Selector Tabs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <button
             type="button"
             onClick={() => setSimulatedScope('main_home')}
@@ -172,7 +172,7 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50/50'
             }`}
           >
-            <span className="font-bold text-xs font-serif-kr">1. 메인뉴스 메인페이지</span>
+            <span className="font-bold text-xs font-serif-kr">1. 메인뉴스 메인홈</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
               simulatedScope === 'main_home' ? 'bg-indigo-800 text-indigo-200' : 'bg-slate-200 text-slate-600'
             }`}>
@@ -206,11 +206,11 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50/50'
             }`}
           >
-            <span className="font-bold text-xs font-serif-kr">3. 서브뉴스 메인페이지</span>
+            <span className="font-bold text-xs font-serif-kr">3. 서브뉴스 메인홈</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
               simulatedScope === 'sub_home' ? 'bg-indigo-800 text-indigo-200' : 'bg-slate-200 text-slate-600'
             }`}>
-              URL: /sub-news (홈)
+              URL: /sub-news
             </span>
           </button>
 
@@ -230,6 +230,23 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
               URL: /sub-news/article/:id
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setSimulatedScope('kcj_radio')}
+            className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+              simulatedScope === 'kcj_radio'
+                ? 'bg-indigo-900 text-white border-indigo-900 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50/50'
+            }`}
+          >
+            <span className="font-bold text-xs font-serif-kr">5. KCJ Radio 방송국</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+              simulatedScope === 'kcj_radio' ? 'bg-indigo-800 text-indigo-200' : 'bg-slate-200 text-slate-600'
+            }`}>
+              URL: /kcj-radio
+            </span>
+          </button>
         </div>
 
         {/* Live Status Result for Selected Simulated Scope */}
@@ -239,7 +256,9 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
               현재 선택된 페이지 ({
                 simulatedScope === 'main_home' ? '메인뉴스 메인페이지' :
                 simulatedScope === 'main_detail' ? '메인뉴스 기사상세' :
-                simulatedScope === 'sub_home' ? '서브뉴스 메인페이지' : '서브뉴스 기사상세'
+                simulatedScope === 'sub_home' ? '서브뉴스 메인페이지' :
+                simulatedScope === 'sub_detail' ? '서브뉴스 기사상세' :
+                simulatedScope === 'kcj_radio' ? 'KCJ Radio 방송국' : '전체'
               }) 노출 진단:
             </span>
 
@@ -339,7 +358,9 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
                 form.popup2.pageScope === 'all' ? '전체 페이지' :
                 form.popup2.pageScope === 'main_home' ? '메인뉴스 메인페이지' :
                 form.popup2.pageScope === 'main_detail' ? '메인뉴스 기사상세' :
-                form.popup2.pageScope === 'sub_home' ? '서브뉴스 메인페이지' : '서브뉴스 기사상세'
+                form.popup2.pageScope === 'sub_home' ? '서브뉴스 메인페이지' :
+                form.popup2.pageScope === 'sub_detail' ? '서브뉴스 기사상세' :
+                form.popup2.pageScope === 'kcj_radio' ? 'KCJ Radio 방송국' : '전체 페이지'
               }
             </p>
           </div>
@@ -386,6 +407,7 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
               <option value="main_detail">📄 2. 메인뉴스 기사 상세페이지</option>
               <option value="sub_home">📊 3. 서브뉴스 메인페이지 (분야별 포털 홈)</option>
               <option value="sub_detail">📑 4. 서브뉴스 기사 상세페이지</option>
+              <option value="kcj_radio">🎙️ 5. KCJ Radio 방송국 페이지</option>
             </select>
             <p className="text-[11px] text-slate-600">
               * 특정 채널이나 기사 상세 페이지만 골라 타겟팅하여 팝업을 차별화 노출할 수 있습니다.

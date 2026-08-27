@@ -36,7 +36,7 @@ import {
   Layers,
   ChevronRight
 } from 'lucide-react';
-import { Article, Language, CategoryId } from '../types';
+import { Article, Language, CategoryId, AdSettings } from '../types';
 import { CATEGORY_TABS } from '../data/mockNews';
 import { translateArticleToEnglish } from '../utils/translator';
 import studioOnAirImage from '../assets/images/kcj_radio_onair_1787733125521.jpg';
@@ -47,6 +47,28 @@ interface KcjRadioPageProps {
   onSelectArticleDetail?: (art: Article) => void;
   initialArticleId?: string | null;
   initialLang?: Language;
+  adSettings?: AdSettings;
+}
+
+// Clean raw text into natural spoken broadcast script
+function cleanTextForSpeech(text: string, lang: Language): string {
+  if (!text) return '';
+  return text
+    .replace(/[#*_~`>]/g, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\[단독\]/g, lang === 'en' ? 'Exclusive: ' : '단독 보도, ')
+    .replace(/\[기획\]/g, lang === 'en' ? 'Special feature: ' : '기획 취재, ')
+    .replace(/\[오피니언\]/g, lang === 'en' ? 'Opinion: ' : '오피니언, ')
+    .replace(/\[사설\]/g, lang === 'en' ? 'Editorial: ' : '사설, ')
+    .replace(/\[칼럼\]/g, lang === 'en' ? 'Column: ' : '칼럼, ')
+    .replace(/\[속보\]/g, lang === 'en' ? 'Breaking news: ' : '속보, ')
+    .replace(/\[포토\]/g, lang === 'en' ? 'Photo news: ' : '포토 뉴스, ')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\([^\)]*\)/g, '')
+    .replace(/[▲▼━─◆■★●▶◀]/g, '')
+    .replace(/\.{2,}/g, '.')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // Extract speech segments from an article
@@ -56,62 +78,65 @@ function buildSpeechSegments(
   translatedEnBody?: { title: string; subtitle: string; content: string } | null
 ): string[] {
   const isEn = language === 'en';
-  const title = isEn && (translatedEnBody?.title || article.titleEn) 
+  const rawTitle = isEn && (translatedEnBody?.title || article.titleEn) 
     ? (translatedEnBody?.title || article.titleEn!) 
     : article.title;
   
-  const subtitle = isEn && (translatedEnBody?.subtitle || article.subtitleEn) 
+  const rawSubtitle = isEn && (translatedEnBody?.subtitle || article.subtitleEn) 
     ? (translatedEnBody?.subtitle || article.subtitleEn!) 
     : (article.subtitle || '');
 
-  const body = isEn && (translatedEnBody?.content || article.contentEn) 
+  const rawBody = isEn && (translatedEnBody?.content || article.contentEn) 
     ? (translatedEnBody?.content || article.contentEn!) 
     : (article.content || article.summary || '');
+
+  const title = cleanTextForSpeech(rawTitle, language);
+  const subtitle = cleanTextForSpeech(rawSubtitle, language);
+  const body = cleanTextForSpeech(rawBody, language);
 
   const segments: string[] = [];
   
   // Headline segment
   if (isEn) {
-    segments.push(`[KCJ Radio News Headline] ${title}`);
+    segments.push(`Korea Culture Journal KCJ Radio News. Headline: ${title}.`);
     if (subtitle) {
-      segments.push(`[Summary] ${subtitle}`);
+      segments.push(`Key Summary: ${subtitle}.`);
     }
-    segments.push(`Reporting by ${article.reporter.name}, Korea Culture Journal.`);
+    const reporterName = article.reporter?.name || 'KCJ Newsroom';
+    segments.push(`Reporting by ${reporterName}, Korea Culture Journal.`);
   } else {
-    segments.push(`[KCJ Radio 문화 헤드라인] ${title}`);
+    segments.push(`한국문화저널 KCJ Radio 문화 헤드라인 뉴스입니다. ${title}`);
     if (subtitle) {
-      segments.push(`[핵심 요약] ${subtitle}`);
+      segments.push(`핵심 요약입니다. ${subtitle}`);
     }
     segments.push(`한국문화저널 ${article.reporter.name} 기자의 보도입니다.`);
   }
 
-  // Split body by paragraphs or punctuation for natural speech pauses
+  // Split body by sentences for conversational broadcaster speech flow
   const rawParagraphs = body
     .split(/\n\s*\n|\n/)
     .map(p => p.trim())
     .filter(p => p.length > 0);
 
   rawParagraphs.forEach(para => {
-    // If paragraph is very long, split by sentence endings
-    if (para.length > 180) {
-      const sentences = para.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g);
-      if (sentences && sentences.length > 0) {
-        sentences.forEach(s => {
-          const trimmed = s.trim();
-          if (trimmed) segments.push(trimmed);
-        });
-      } else {
-        segments.push(para);
-      }
-    } else {
+    // Split sentences cleanly
+    const sentences = para.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g);
+    if (sentences && sentences.length > 0) {
+      sentences.forEach(s => {
+        const trimmed = s.trim();
+        if (trimmed && trimmed.length > 0) {
+          segments.push(trimmed);
+        }
+      });
+    } else if (para) {
       segments.push(para);
     }
   });
 
   if (isEn) {
-    segments.push(`You have been listening to KCJ Radio, Korea Culture Journal. Thank you.`);
+    segments.push(`This has been KCJ Radio, Korea Culture Journal's international digital broadcast. Thank you for listening.`);
   } else {
-    segments.push(`지금까지 한국문화저널 KCJ Radio 디지털 방송이었습니다. 청취해 주셔서 감사합니다.`);
+    segments.push(`지금까지 한국문화저널 KCJ Radio 디지털 방송이었습니다. 청취해 주셔서 대단히 감사합니다.`);
   }
 
   return segments;
@@ -146,6 +171,7 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
   onSelectArticleDetail,
   initialArticleId,
   initialLang = 'ko',
+  adSettings,
 }) => {
   // Navigation / View Tabs: Live Studio, Timetable, Archive, Analytics
   const [activeTab, setActiveTab] = useState<'studio' | 'timetable' | 'archive' | 'analytics'>('studio');
@@ -358,7 +384,7 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
     }
   };
 
-  // Robust Speech Player: Plays segment directly using supplied segments array
+  // Robust Speech Player: Plays segment directly using natural conversational broadcaster voices
   const playSegmentDirectly = (
     segmentsList: string[],
     segmentIdx: number,
@@ -382,21 +408,45 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
     setActiveSegmentIndex(segmentIdx);
     activeIndexRef.current = segmentIdx;
 
-    const textToSpeak = segmentsList[segmentIdx];
+    const rawText = segmentsList[segmentIdx];
+    const textToSpeak = cleanTextForSpeech(rawText, targetLang);
+    if (!textToSpeak) {
+      // Skip empty segment
+      if (segmentIdx + 1 < segmentsList.length) {
+        playSegmentDirectly(segmentsList, segmentIdx + 1, targetArticle, targetLang);
+      } else {
+        handleProgramEnd(targetArticle, targetLang);
+      }
+      return;
+    }
+
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
 
-    // Apply voice language, speed, and volume
+    // Apply voice language, speed, pitch and volume
     utterance.lang = targetLang === 'en' ? 'en-US' : 'ko-KR';
     utterance.rate = speedRef.current;
     utterance.volume = isMutedRef.current ? 0 : volumeRef.current;
+    utterance.pitch = 1.0;
 
-    // Pick best matching voice
+    // Pick best matching natural conversational voice
     const voices = window.speechSynthesis.getVoices();
     if (voices && voices.length > 0) {
-      const prefix = targetLang === 'en' ? 'en' : 'ko';
-      const matched = voices.find(v => v.lang.toLowerCase().startsWith(prefix));
-      if (matched) {
-        utterance.voice = matched;
+      if (targetLang === 'en') {
+        const enVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').startsWith('en'));
+        const naturalVoice = enVoices.find(v => 
+          /natural|google|neural|samantha|jenny|guy|aria|david|zira|george/i.test(v.name)
+        ) || enVoices.find(v => v.lang.includes('US') || v.lang.includes('GB')) || enVoices[0];
+        if (naturalVoice) {
+          utterance.voice = naturalVoice;
+        }
+      } else {
+        const koVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').startsWith('ko'));
+        const naturalVoice = koVoices.find(v => 
+          /natural|google|neural|heami|sunhi|yuna|seoyeon/i.test(v.name)
+        ) || koVoices[0];
+        if (naturalVoice) {
+          utterance.voice = naturalVoice;
+        }
       }
     }
 
@@ -447,27 +497,34 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
 
       if (nextArt) {
         setTimeout(() => {
-          handleSelectArticle(nextArt, true);
+          handleSelectArticle(nextArt, true, 0, currentLang);
         }, 900);
       }
     }
   };
 
   // Master handler for selecting and playing an article
-  const handleSelectArticle = (article: Article, autoPlay = true, startSegment = 0) => {
+  const handleSelectArticle = (
+    article: Article, 
+    autoPlay = true, 
+    startSegment = 0, 
+    targetLangOverride?: Language
+  ) => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
     
+    const activeLanguage = targetLangOverride || lang;
+
     setIsPlaying(false);
     setIsPaused(false);
     setCurrentArticle(article);
     setActiveSegmentIndex(startSegment);
     addToHistory(article);
-    updateUrlParams(article.id, lang);
+    updateUrlParams(article.id, activeLanguage);
 
     // If English translation is required and not present
-    if (lang === 'en' && !article.contentEn) {
+    if (activeLanguage === 'en' && !article.contentEn) {
       setIsTranslatingEn(true);
       translateArticleToEnglish({
         id: article.id,
@@ -500,13 +557,13 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
     }
 
     // Build segments synchronously
-    const segs = buildSpeechSegments(article, lang, translatedEnBody);
+    const segs = buildSpeechSegments(article, activeLanguage, translatedEnBody);
     setSpeechSegments(segs);
 
     if (autoPlay) {
       // Small timeout to allow state registration
       setTimeout(() => {
-        playSegmentDirectly(segs, startSegment, article, lang);
+        playSegmentDirectly(segs, startSegment, article, activeLanguage);
       }, 100);
     }
   };
@@ -622,7 +679,7 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
     handleStop();
     setLang(targetLang);
     if (currentArticle) {
-      handleSelectArticle(currentArticle, isPlaying, 0);
+      handleSelectArticle(currentArticle, isPlaying, 0, targetLang);
     }
   };
 
@@ -1326,6 +1383,45 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Radio Sidebar Sponsor Banner / Ad Slot (Requirement 5) */}
+              {adSettings?.radioSidebar ? (
+                <div 
+                  id="radio-sidebar-ad-slot"
+                  className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-900/90 p-4 shadow-xl text-center"
+                  dangerouslySetInnerHTML={{ __html: adSettings.radioSidebar }}
+                />
+              ) : (
+                <div 
+                  id="radio-sidebar-ad-slot"
+                  className="rounded-3xl overflow-hidden border border-slate-800/90 bg-gradient-to-br from-slate-900/95 via-slate-950 to-slate-900 p-5 text-center space-y-3 shadow-xl"
+                >
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 border-b border-slate-800 pb-2">
+                    <span className="font-mono font-bold text-amber-400 tracking-wider">🎙 KCJ RADIO SPONSORED</span>
+                    <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">공식 후원사 배너</span>
+                  </div>
+                  <div className="py-2 space-y-1.5">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px] border border-amber-500/30">
+                      2026 K-Heritage Media Partner
+                    </span>
+                    <h4 className="text-amber-200 font-bold text-sm font-serif-kr">
+                      대한민국 문화예술 & 국악 오케스트라 후원
+                    </h4>
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      한국문화저널 KCJ Radio와 함께하는 전통 문화 콘텐츠 디지털 보존 및 글로벌 송출 프로젝트
+                    </p>
+                  </div>
+                  <div className="pt-1">
+                    <a
+                      href="mailto:soobakmu@naver.com?subject=[KCJ%20Radio%20광고%20및%20방송후원%20문의]"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-xl text-xs font-black transition-all shadow-md active:scale-95"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>KCJ Radio 광고·방송 후원 문의</span>
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>

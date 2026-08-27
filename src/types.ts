@@ -220,12 +220,13 @@ export interface AdSettings {
   afterBody: string;     // ③ 기사 본문 완료 직후
   sidebarTop: string;    // ④ 우측 사이드바 상단
   sidebarBottom: string; // ⑤ 우측 사이드바 하단
+  radioSidebar?: string; // ⑥ 라디오방송국 실시간 편성 대기열 하단 광고
   belowSubtitleEnabled?: boolean; // ① belowSubtitle 활성화 여부
 }
 
 // Layer Popup Configuration Types
 export type PopupPosition = 'TOP_LEFT' | 'TOP_RIGHT' | 'BOTTOM_LEFT' | 'BOTTOM_RIGHT';
-export type PopupScopeTarget = 'all' | 'main_home' | 'main_detail' | 'sub_home' | 'sub_detail';
+export type PopupScopeTarget = 'all' | 'main_home' | 'main_detail' | 'sub_home' | 'sub_detail' | 'kcj_radio';
 
 export interface PopupConfig {
   id: string;

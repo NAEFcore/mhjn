@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { PopupConfig } from '../types';
+import { PopupConfig, PopupScopeTarget } from '../types';
 import { X, ExternalLink } from 'lucide-react';
 
 interface LayerPopupProps {
   config: PopupConfig;
-  currentScope?: 'main_home' | 'main_detail' | 'sub_home' | 'sub_detail';
+  currentScope?: PopupScopeTarget;
   onClose?: () => void;
   forcePreview?: boolean;
 }
@@ -38,12 +38,12 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
     let activeScope = currentScope;
     if (!activeScope && typeof window !== 'undefined') {
       const path = window.location.pathname;
-      const isSub = path.startsWith('/sub-news');
-      const isDetail = path.includes('/article/');
-      if (isSub) {
-        activeScope = isDetail ? 'sub_detail' : 'sub_home';
+      if (path.startsWith('/kcj-radio')) {
+        activeScope = 'kcj_radio';
+      } else if (path.startsWith('/sub-news')) {
+        activeScope = path.includes('/article/') ? 'sub_detail' : 'sub_home';
       } else {
-        activeScope = isDetail ? 'main_detail' : 'main_home';
+        activeScope = path.includes('/article/') ? 'main_detail' : 'main_home';
       }
     }
 

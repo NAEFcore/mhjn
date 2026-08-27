@@ -465,7 +465,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
             />
 
             {/* Middle 2-Column: Left (News Feed) & Right (Rankings, Editorial Opinion, Issues, Culture Radar) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Left Column (8 Cols): Section Highlights & In-Depth Stories (Each Section in 2-Column Grid, 2 Rows max) */}
               <div className="lg:col-span-8 space-y-8">
                 {/* Cultural Arts Highlights */}
@@ -521,8 +521,8 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
                 />
               </div>
 
-              {/* Right Column (4 Cols): Sidebar Widgets */}
-              <aside className="lg:col-span-4 space-y-6">
+              {/* Right Column (4 Cols): Sidebar Widgets (Sticky on scroll) */}
+              <aside className="lg:col-span-4 space-y-6 self-start sticky top-4">
                 {/* 1. Real-time Rankings */}
                 <RankingSection
                   articles={visibleArticles}

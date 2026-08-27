@@ -29,6 +29,7 @@ export const DEFAULT_AD_SETTINGS: AdSettings = {
   afterBody: '',
   sidebarTop: '',
   sidebarBottom: '',
+  radioSidebar: '',
   belowSubtitleEnabled: true,
 };
 
@@ -139,6 +140,8 @@ export function loadPersistedAdSettings(): AdSettings {
         afterBody: parsed.afterBody || '',
         sidebarTop: parsed.sidebarTop || '',
         sidebarBottom: parsed.sidebarBottom || '',
+        radioSidebar: parsed.radioSidebar || '',
+        belowSubtitleEnabled: parsed.belowSubtitleEnabled !== false,
       };
     }
   } catch (e) {

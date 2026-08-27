@@ -21,7 +21,8 @@ import {
   Layers,
   ChevronDown,
   Menu,
-  X
+  X,
+  Radio
 } from 'lucide-react';
 import { Article, Reporter, AuthUser, SubNewsCategoryId, AdSettings, Language } from '../types';
 import { SUB_NEWS_CATEGORIES } from '../data/mockNews';
@@ -38,6 +39,7 @@ interface SubNewsAppPageProps {
   onGoToMainNews: () => void;
   adSettings?: AdSettings;
   initialArticleId?: string | null;
+  onGoToRadio?: (articleId: string, lang: Language) => void;
 }
 
 export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
@@ -51,6 +53,7 @@ export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
   onGoToMainNews,
   adSettings,
   initialArticleId = null,
+  onGoToRadio,
 }) => {
   const [activeCategory, setActiveCategory] = useState<SubNewsCategoryId | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -309,10 +312,17 @@ export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
                 <span>서브 뉴스 목록으로 돌아가기</span>
               </button>
 
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span className="font-mono text-[11px]">
+              <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                <span className="font-mono text-[11px] hidden sm:inline">
                   {selectedArticle.mainNewsEnabled !== false ? '📰 메인·서브 동시발행 기사' : '🌐 서브뉴스 단독기사'}
                 </span>
+                <button
+                  onClick={() => onGoToRadio ? onGoToRadio(selectedArticle.id, lang) : window.location.href = `/kcj-radio?article=${selectedArticle.id}&lang=${lang}`}
+                  className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-lg font-black text-xs flex items-center gap-1.5 shadow-xs transition-all active:scale-95 border border-amber-400"
+                >
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>KCJ Radio에서 듣기</span>
+                </button>
                 <button
                   onClick={onGoToMainNews}
                   className="px-3 py-1.5 bg-[#1b2a47] text-white rounded-lg font-bold text-xs hover:bg-[#283d64] transition-colors"
@@ -340,6 +350,7 @@ export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
                 }
               }}
               adSettings={adSettings}
+              onGoToRadio={onGoToRadio}
             />
           </div>
         ) : (
