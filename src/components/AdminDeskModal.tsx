@@ -2271,6 +2271,58 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* 6. KCJ Radio 방송국 우측 사이드바 하단 배너 광고 */}
+                <div className="p-4 bg-[#fbf9f5] rounded-2xl border border-[#ded8cf] space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[#1b2a47] text-amber-300 font-bold text-xs flex items-center justify-center font-sans">
+                        6
+                      </span>
+                      <strong className="text-slate-900 text-sm font-serif-kr">
+                        ⑥ KCJ Radio 방송국 우측 사이드바 하단 (편성 대기열 하단 스폰서 배너)
+                      </strong>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(adsForm.radioSidebar || '').trim() ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-bold text-[10px]">
+                          ● 렌더링 활성
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-300 rounded text-[10px]">
+                          ○ 기본 후원 배너 표시
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400 font-mono">Slot: radioSidebar</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 font-sans">
+                    KCJ Radio 전용 온에어 스튜디오 페이지의 우측 사이드바(실시간 온에어 플레이리스트 대기열 하단)에 표시되는 전용 스폰서 광고 및 배너 영역입니다.
+                  </p>
+                  <textarea
+                    rows={4}
+                    value={adsForm.radioSidebar || ''}
+                    onChange={(e) => setAdsForm({ ...adsForm, radioSidebar: e.target.value })}
+                    placeholder={`<!-- KCJ Radio 방송국 사이드바 배너 광고 코드 HTML/JS -->\n<a href="https://example.com" target="_blank"><img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600" alt="라디오 스폰서" style="width:100%;border-radius:16px;" /></a>`}
+                    className="w-full p-3 font-mono text-xs bg-white border border-[#ded8cf] rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800 shadow-2xs"
+                  />
+                  <div className="flex items-center justify-end gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, radioSidebar: `<div style="background:linear-gradient(135deg, #1e293b, #0f172a);border:1px solid #334155;border-radius:18px;padding:16px;text-align:center;color:#f8fafc;"><p style="font-size:11px;color:#fbbf24;font-weight:bold;margin-bottom:4px;">📻 KCJ RADIO 공식 파트너십</p><h4 style="font-size:14px;font-weight:bold;margin:0 0 6px;">2026 대한민국 K-컬처 국악 대축전</h4><p style="font-size:11px;color:#94a3b8;margin:0;">전통 소리의 현대적 울림, 지금 예매하세요</p></div>` })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 font-sans"
+                    >
+                      + 라디오 배너 예시
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdsForm({ ...adsForm, radioSidebar: '' })}
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-rose-600 hover:bg-rose-50 font-sans"
+                    >
+                      비우기
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Bottom Action Save */}
@@ -2299,6 +2351,8 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
           {/* TAB: Layer Popup Manager */}
           {activeTab === 'popup' && (
             <PopupManagerTab
+              dualPopupsConfig={dualPopupsConfig}
+              onUpdateDualPopupsConfig={onUpdateDualPopupsConfig}
               popupConfig={popupConfig}
               onUpdatePopupConfig={onUpdatePopupConfig}
             />

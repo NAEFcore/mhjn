@@ -4,6 +4,7 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import { INITIAL_ARTICLES } from './src/data/mockNews';
 
 dotenv.config();
 
@@ -727,17 +728,245 @@ app.post('/api/ads', (req, res) => {
   }
 });
 
+function escapeHtml(str: string | undefined | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function escapeAttribute(str: string | undefined | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function getAllArticles(): any[] {
+  const map = new Map<string, any>();
+  if (Array.isArray(INITIAL_ARTICLES)) {
+    for (const art of INITIAL_ARTICLES) {
+      if (art && art.id) map.set(art.id, art);
+    }
+  }
+  if (Array.isArray(serverArticles)) {
+    for (const art of serverArticles) {
+      if (art && art.id) map.set(art.id, art);
+    }
+  }
+  return Array.from(map.values());
+}
+
+function renderPageHtml(template: string, reqPath: string, req: express.Request): { html: string; status: number } {
+  const host = req.get('host') || 'ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app';
+  const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+  const baseUrl = `${protocol}://${host}`;
+
+  const allArticles = getAllArticles();
+
+  // Match /article/:id or /sub-news/article/:id
+  const articleMatch = reqPath.match(/^\/(?:sub-news\/)?article\/([a-zA-Z0-9_-]+)/);
+  if (articleMatch) {
+    const articleId = articleMatch[1];
+    const article = allArticles.find((a: any) => a.id === articleId);
+
+    if (!article) {
+      // 404 Not Found for Search Bots and Users
+      const notFoundTitle = '404 기사를 찾을 수 없습니다 | 한국문화저널';
+      const notFoundBody = `
+        <div style="max-width:600px;margin:80px auto;text-align:center;padding:32px;font-family:sans-serif;color:#1e293b;">
+          <h1 style="font-size:32px;font-weight:bold;color:#0f172a;margin-bottom:12px;">404 - 기사를 찾을 수 없습니다</h1>
+          <p style="color:#64748b;font-size:16px;line-height:1.6;margin-bottom:24px;">요청하신 기사가 삭제되었거나 존재하지 않는 경로입니다.<br>기사 ID: <code>${escapeHtml(articleId)}</code></p>
+          <a href="/" style="display:inline-block;padding:12px 24px;background:#1b2a47;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">한국문화저널 홈으로 이동</a>
+        </div>
+      `;
+      let html = template;
+      html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${notFoundTitle}</title>`);
+      html = html.replace('<div id="root"></div>', `<div id="root">${notFoundBody}</div>`);
+      return { html, status: 404 };
+    }
+
+    const title = `${article.title} - 한국문화저널`;
+    const rawDesc = article.summary || article.content || '';
+    const description = rawDesc.slice(0, 160).replace(/[\r\n\t]+/g, ' ').trim();
+    const canonicalUrl = `${baseUrl}/article/${article.id}`;
+    const imageUrl = article.imageUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=1200';
+    let publishedIso = new Date().toISOString();
+    try {
+      if (article.publishedAt) {
+        const d = new Date(article.publishedAt.replace(/\./g, '-'));
+        if (!isNaN(d.getTime())) publishedIso = d.toISOString();
+      }
+    } catch {
+      // ignore
+    }
+    const reporterName = article.reporter?.name || '한국문화저널 편집국';
+    const reporterDept = article.reporter?.department || '문화부';
+    const categoryName = article.categoryLabel || article.category || '문화·예술';
+
+    const articleJsonLd = {
+      "@context": "https://schema.org",
+      "@type": "NewsArticle",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": canonicalUrl
+      },
+      "headline": article.title,
+      "alternativeHeadline": article.subtitle || "",
+      "description": description,
+      "image": [imageUrl],
+      "datePublished": publishedIso,
+      "dateModified": publishedIso,
+      "author": {
+        "@type": "Person",
+        "name": reporterName,
+        "jobTitle": article.reporter?.title || "기자",
+        "worksFor": {
+          "@type": "NewsMediaOrganization",
+          "name": "한국문화저널"
+        }
+      },
+      "publisher": {
+        "@type": "NewsMediaOrganization",
+        "name": "한국문화저널",
+        "url": baseUrl,
+        "logo": {
+          "@type": "ImageObject",
+          "url": `${baseUrl}/favicon.ico`
+        }
+      },
+      "articleSection": categoryName,
+      "keywords": (article.tags || []).join(", ")
+    };
+
+    // Pre-rendered HTML for Googlebot / Naver Yeti
+    const articleBodyHtml = `
+      <!-- Server-Side Pre-rendered Content for Search Engine Crawlers (Googlebot, Naver Yeti) -->
+      <div id="ssr-article-container" style="max-width:860px;margin:0 auto;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;color:#1e293b;line-height:1.75;">
+        <nav style="font-size:13px;color:#64748b;margin-bottom:16px;">
+          <a href="/" style="color:#1b2a47;text-decoration:none;font-weight:bold;">한국문화저널 홈</a> &gt; 
+          <span style="font-weight:600;color:#1b2a47;">${escapeHtml(categoryName)}</span>
+        </nav>
+        <header style="margin-bottom:24px;">
+          <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+            <span style="display:inline-block;padding:3px 8px;background:#1b2a47;color:#fbbf24;font-weight:bold;border-radius:4px;font-size:12px;">${escapeHtml(article.badge || '단독')}</span>
+            <span style="font-size:13px;font-weight:bold;color:#475569;">${escapeHtml(article.subCategory || categoryName)}</span>
+          </div>
+          <h1 itemprop="headline" style="font-size:28px;font-weight:900;line-height:1.35;color:#0f172a;margin:0 0 12px 0;">${escapeHtml(article.title)}</h1>
+          ${article.subtitle ? `<h2 itemprop="alternativeHeadline" style="font-size:17px;font-weight:600;line-height:1.45;color:#475569;margin:0 0 16px 0;border-left:3px solid #1b2a47;padding-left:12px;">${escapeHtml(article.subtitle)}</h2>` : ''}
+          <div style="font-size:13px;color:#64748b;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:12px 0;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+            <span><strong>기자:</strong> <span itemprop="author">${escapeHtml(reporterName)}</span> (${escapeHtml(reporterDept)})</span>
+            <span><strong>발행일:</strong> <time itemprop="datePublished">${escapeHtml(article.publishedAt)}</time></span>
+            ${article.views ? `<span><strong>조회수:</strong> ${article.views.toLocaleString()}</span>` : ''}
+          </div>
+        </header>
+        ${article.imageUrl ? `
+        <figure style="margin:0 0 24px 0;">
+          <img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(article.imageCaption || article.title)}" style="width:100%;max-height:560px;object-fit:cover;border-radius:12px;" />
+          ${article.imageCaption ? `<figcaption style="font-size:12px;color:#64748b;margin-top:8px;line-height:1.4;">${escapeHtml(article.imageCaption)}</figcaption>` : ''}
+        </figure>` : ''}
+        <div itemprop="articleBody" style="font-size:17px;line-height:1.85;color:#334155;white-space:pre-line;margin-bottom:32px;">
+          ${escapeHtml(article.content)}
+        </div>
+        ${(article.tags && article.tags.length > 0) ? `
+        <div style="margin:24px 0;display:flex;flex-wrap:wrap;gap:6px;">
+          ${article.tags.map((t: string) => `<span style="display:inline-block;padding:4px 10px;background:#f1f5f9;color:#334155;border-radius:16px;font-size:12px;">#${escapeHtml(t)}</span>`).join('')}
+        </div>` : ''}
+        <footer style="margin-top:36px;padding-top:20px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;line-height:1.6;">
+          <p>본 기사의 저작권은 <strong>(주)한국문화저널미디어</strong>에 있으며, 무단 전재 및 재배포를 금합니다.</p>
+          <p>원문 기사 주소 (Canonical URL): <a href="${canonicalUrl}" style="color:#1b2a47;">${canonicalUrl}</a></p>
+        </footer>
+      </div>
+    `;
+
+    let html = template;
+    html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+    html = html.replace(/<meta\s+name="title"\s+content="[^"]*"\s*\/?>/i, `<meta name="title" content="${escapeAttribute(title)}" />`);
+    html = html.replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${escapeAttribute(description)}" />`);
+    html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${escapeAttribute(canonicalUrl)}" />`);
+    html = html.replace(/<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:title" content="${escapeAttribute(title)}" />`);
+    html = html.replace(/<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:description" content="${escapeAttribute(description)}" />`);
+    html = html.replace(/<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:url" content="${escapeAttribute(canonicalUrl)}" />`);
+    html = html.replace(/<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:image" content="${escapeAttribute(imageUrl)}" />`);
+    html = html.replace(/<meta\s+property="og:type"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:type" content="article" />`);
+    html = html.replace(/<meta\s+property="twitter:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:title" content="${escapeAttribute(title)}" />`);
+    html = html.replace(/<meta\s+property="twitter:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:description" content="${escapeAttribute(description)}" />`);
+    html = html.replace(/<meta\s+property="twitter:url"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:url" content="${escapeAttribute(canonicalUrl)}" />`);
+    html = html.replace(/<meta\s+property="twitter:image"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:image" content="${escapeAttribute(imageUrl)}" />`);
+    
+    // Inject NewsArticle JSON-LD before </head>
+    html = html.replace('</head>', `<script type="application/ld+json">\n${JSON.stringify(articleJsonLd, null, 2)}\n</script>\n</head>`);
+    
+    // Inject pre-rendered body into <div id="root"></div>
+    html = html.replace('<div id="root"></div>', `<div id="root">${articleBodyHtml}</div>`);
+
+    return { html, status: 200 };
+  }
+
+  // KCJ Radio Route
+  if (reqPath.startsWith('/kcj-radio')) {
+    const title = 'KCJ Radio 디지털 방송국 온에어 스튜디오 - 한국문화저널';
+    const description = '대한민국 전통 국악, 판소리, 문화재 해설 및 문화예술 뉴스를 실시간 고품질 오디오로 청취하는 KCJ Radio 온에어 스튜디오.';
+    const canonicalUrl = `${baseUrl}/kcj-radio`;
+
+    let html = template;
+    html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+    html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${escapeAttribute(canonicalUrl)}" />`);
+    html = html.replace(/<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:title" content="${escapeAttribute(title)}" />`);
+    html = html.replace(/<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:description" content="${escapeAttribute(description)}" />`);
+    html = html.replace(/<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:url" content="${escapeAttribute(canonicalUrl)}" />`);
+    return { html, status: 200 };
+  }
+
+  // Sub News Portal Route
+  if (reqPath.startsWith('/sub-news')) {
+    const title = '서브 뉴스 & 분야별 포털 - 한국문화저널';
+    const description = '문화예술, 전통유산, 전시/공연, 도예/공예 등 분야별 심층 기사와 포털 서비스를 제공합니다.';
+    const canonicalUrl = `${baseUrl}/sub-news`;
+
+    let html = template;
+    html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+    html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${escapeAttribute(canonicalUrl)}" />`);
+    html = html.replace(/<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:title" content="${escapeAttribute(title)}" />`);
+    html = html.replace(/<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:description" content="${escapeAttribute(description)}" />`);
+    html = html.replace(/<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:url" content="${escapeAttribute(canonicalUrl)}" />`);
+    return { html, status: 200 };
+  }
+
+  // Homepage / Default Route
+  const title = '한국문화저널 (Korea Culture Journal) - 문화·예술·전통유산 전문 정론지';
+  const canonicalUrl = `${baseUrl}/`;
+
+  let html = template;
+  html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${escapeAttribute(canonicalUrl)}" />`);
+  return { html, status: 200 };
+}
+
 // SEO: robots.txt for Googlebot & Yeti (Naver SearchBot)
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
+  const baseUrl = 'https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app';
   res.send(`User-agent: *
 Allow: /
-Sitemap: https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/sitemap.xml
+Sitemap: ${baseUrl}/sitemap.xml
 
 User-agent: Yeti
 Allow: /
 
 User-agent: Googlebot
+Allow: /
+
+User-agent: Daumoa
+Allow: /
+
+User-agent: Bingbot
 Allow: /
 `);
 });
@@ -747,6 +976,25 @@ app.get('/sitemap.xml', (req, res) => {
   res.type('application/xml');
   const baseUrl = 'https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app';
   const currentDate = new Date().toISOString().split('T')[0];
+  const allArticles = getAllArticles();
+
+  const articleUrls = allArticles.map((art) => {
+    const pubDate = (art.publishedAt || currentDate).replace(/\./g, '-');
+    return `  <url>
+    <loc>${baseUrl}/article/${art.id}</loc>
+    <lastmod>${pubDate.length === 10 ? pubDate : currentDate}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <news:news>
+      <news:publication>
+        <news:name>한국문화저널</news:name>
+        <news:language>ko</news:language>
+      </news:publication>
+      <news:publication_date>${pubDate}</news:publication_date>
+      <news:title><![CDATA[${art.title}]]></news:title>
+    </news:news>
+  </url>`;
+  }).join('\n');
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
@@ -757,10 +1005,22 @@ app.get('/sitemap.xml', (req, res) => {
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>${baseUrl}/amp</loc>
+    <loc>${baseUrl}/kcj-radio</loc>
     <lastmod>${currentDate}</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/sub-news</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/amp</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>${baseUrl}/paper-edition</loc>
@@ -768,18 +1028,7 @@ app.get('/sitemap.xml', (req, res) => {
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
-  <url>
-    <loc>${baseUrl}/culture-art</loc>
-    <lastmod>${currentDate}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/heritage</loc>
-    <lastmod>${currentDate}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
+${articleUrls}
 </urlset>`;
   res.send(xml);
 });
@@ -789,6 +1038,19 @@ app.get('/rss.xml', (req, res) => {
   res.type('application/rss+xml');
   const baseUrl = 'https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app';
   const pubDate = new Date().toUTCString();
+  const allArticles = getAllArticles();
+
+  const rssItems = allArticles.map((art) => {
+    return `    <item>
+      <title><![CDATA[${art.badge ? `[${art.badge}] ` : ''}${art.title}]]></title>
+      <link>${baseUrl}/article/${art.id}</link>
+      <description><![CDATA[${art.summary || (art.content || '').slice(0, 200)}]]></description>
+      <author>${art.reporter?.email || 'press@kculturejournal.com'} (${art.reporter?.name || '한국문화저널 편집국'})</author>
+      <category>${art.categoryLabel || art.category || '문화·예술'}</category>
+      <pubDate>${new Date(art.publishedAt?.replace(/\./g, '-') || Date.now()).toUTCString()}</pubDate>
+      <guid isPermaLink="true">${baseUrl}/article/${art.id}</guid>
+    </item>`;
+  }).join('\n');
 
   const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
@@ -800,15 +1062,7 @@ app.get('/rss.xml', (req, res) => {
     <copyright>Copyright 2026 (주)한국문화저널미디어 All Rights Reserved.</copyright>
     <pubDate>${pubDate}</pubDate>
     <atom:link href="${baseUrl}/rss.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title><![CDATA[[단독] 해외 유출 국보급 조선 문화재 23만 점 환수 프로젝트 본격화]]></title>
-      <link>${baseUrl}/#art-001</link>
-      <description><![CDATA[국가유산청과 국외소재문화유산재단이 전 세계 22개국에 흩어진 23만 여 점의 한국 문화유산 환수를 위한 범정부 민관합동위원회를 공식 출범했다.]]></description>
-      <author>park_cw@kculturejournal.com (박찬우 문화전문기자)</author>
-      <category>전통·유산</category>
-      <pubDate>${pubDate}</pubDate>
-      <guid>${baseUrl}/#art-001</guid>
-    </item>
+${rssItems}
   </channel>
 </rss>`;
   res.send(rss);
@@ -818,14 +1072,38 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: 'custom',
     });
     app.use(vite.middlewares);
+
+    app.get('*', async (req, res, next) => {
+      // Skip API routes or static files if not caught
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
+      try {
+        const templatePath = path.resolve(process.cwd(), 'index.html');
+        let template = fs.readFileSync(templatePath, 'utf-8');
+        template = await vite.transformIndexHtml(req.originalUrl, template);
+        const { html, status } = renderPageHtml(template, req.path, req);
+        res.status(status).set({ 'Content-Type': 'text/html; charset=utf-8' }).send(html);
+      } catch (e: any) {
+        vite.ssrFixStacktrace(e);
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { index: false }));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      try {
+        const templatePath = path.join(distPath, 'index.html');
+        const template = fs.readFileSync(templatePath, 'utf-8');
+        const { html, status } = renderPageHtml(template, req.path, req);
+        res.status(status).set({ 'Content-Type': 'text/html; charset=utf-8' }).send(html);
+      } catch (err) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
     });
   }
 

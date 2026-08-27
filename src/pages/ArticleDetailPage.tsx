@@ -673,11 +673,11 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
         />
 
         {/* Real TTS Player Bar (Web Speech API) */}
-        <div className="bg-[#1b2a47] text-white rounded-2xl p-4 shadow-md flex flex-wrap items-center justify-between gap-4 border border-[#2d3e5f]">
-          <div className="flex items-center gap-3">
+        <div className="bg-[#1b2a47] text-white rounded-2xl p-3.5 sm:p-4 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 border border-[#2d3e5f]">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={handleToggleTts}
-              className="w-10 h-10 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 flex items-center justify-center font-bold transition-all shadow-md shrink-0"
+              className="w-10 h-10 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 flex items-center justify-center font-bold transition-all shadow-md shrink-0 active:scale-95"
               title={isPlayingAudio && !isPausedAudio ? '일시정지' : '본문 읽어주기 (TTS)'}
             >
               {isPlayingAudio && !isPausedAudio ? (
@@ -690,49 +690,49 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
             {isPlayingAudio && (
               <button
                 onClick={handleStopTts}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors shrink-0 active:scale-95"
                 title="정지"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
               </button>
             )}
 
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-serif-kr font-bold text-sm text-white">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-serif-kr font-bold text-sm text-white whitespace-nowrap">
                   {isEn ? 'Voice Reader (TTS)' : '한국문화저널 본문 듣기 (AI 보이스)'}
                 </span>
                 {isPlayingAudio && (
-                  <span className="px-2 py-0.2 bg-amber-400 text-slate-950 rounded-full text-[10px] font-black animate-pulse">
+                  <span className="px-2 py-0.2 bg-amber-400 text-slate-950 rounded-full text-[10px] font-black animate-pulse whitespace-nowrap">
                     {isPausedAudio ? (isEn ? 'PAUSED' : '일시정지됨') : (isEn ? 'PLAYING' : '재생중')}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-300 font-sans">
+              <p className="text-[11px] text-slate-300 font-sans truncate">
                 {isEn ? 'Listen to the full article with natural speech' : '기사 전문을 고품질 음성으로 편안하게 청취하세요.'}
               </p>
             </div>
           </div>
 
-          {/* Right: Speed Selector & Open in KCJ Radio Button */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Right: Speed Selector & Open in KCJ Radio Button in Clean Horizontal Row */}
+          <div className="flex items-center gap-2 shrink-0 flex-nowrap overflow-x-auto pb-0.5 md:pb-0">
             <button
               onClick={handleNavigateToRadio}
-              className="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 active:scale-95"
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 active:scale-95 whitespace-nowrap"
               title="KCJ Radio 디지털 방송국 전용 스튜디오에서 듣기"
             >
-              <Radio className="w-3.5 h-3.5 text-slate-950" />
+              <Radio className="w-3.5 h-3.5 text-slate-950 shrink-0" />
               <span>🎙 KCJ Radio 스튜디오에서 듣기</span>
             </button>
 
             {/* Speed Selector */}
-            <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700 text-xs">
-              <span className="text-slate-400 text-[10px] px-1 font-bold">배속:</span>
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700 text-xs shrink-0 whitespace-nowrap">
+              <span className="text-slate-400 text-[10px] px-1 font-bold whitespace-nowrap">배속:</span>
               {[0.8, 1.0, 1.2, 1.5].map((spd) => (
                 <button
                   key={spd}
                   onClick={() => handleChangeTtsSpeed(spd)}
-                  className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                     audioSpeed === spd
                       ? 'bg-amber-400 text-slate-950 font-black'
                       : 'text-slate-300 hover:text-white'

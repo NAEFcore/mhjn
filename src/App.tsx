@@ -9,7 +9,7 @@ import { AmpMobilePage } from './pages/AmpMobilePage';
 import { SubNewsAppPage } from './pages/SubNewsAppPage';
 import { KcjRadioPage } from './pages/KcjRadioPage';
 import { Zap, Newspaper, Lock, UserCheck, LogOut, Globe2, Radio } from 'lucide-react';
-import { AuthUser, Reporter, Article, CulturalEvent, CategoryTab, AdSettings, PopupConfig } from './types';
+import { AuthUser, Reporter, Article, CulturalEvent, CategoryTab, AdSettings, PopupConfig, DualPopupsConfig, PopupScopeTarget } from './types';
 import { CATEGORY_TABS } from './data/mockNews';
 import { AdminDeskModal } from './components/AdminDeskModal';
 import { ReporterAuthModal } from './components/ReporterAuthModal';
@@ -25,8 +25,8 @@ import {
   savePersistedUser,
   loadPersistedAdSettings,
   savePersistedAdSettings,
-  loadPersistedPopupConfig,
-  savePersistedPopupConfig
+  loadPersistedDualPopupsConfig,
+  savePersistedDualPopupsConfig
 } from './utils/storage';
 import { 
   fetchArticlesFromFirestore, 
@@ -58,7 +58,12 @@ export default function App() {
   const [events, setEventsState] = useState<CulturalEvent[]>(() => loadPersistedEvents());
   const [categories, setCategories] = useState<CategoryTab[]>(CATEGORY_TABS);
   const [adSettings, setAdSettingsState] = useState<AdSettings>(() => loadPersistedAdSettings());
-  const [popupConfig, setPopupConfigState] = useState<PopupConfig>(() => loadPersistedPopupConfig());
+  const [dualPopupsConfig, setDualPopupsConfigState] = useState<DualPopupsConfig>(() => loadPersistedDualPopupsConfig());
+
+  const setDualPopupsConfig = (newConfig: DualPopupsConfig) => {
+    setDualPopupsConfigState(newConfig);
+    savePersistedDualPopupsConfig(newConfig);
+  };
 
   // Firestore Realtime Subscription & Auto-Seeding
   useEffect(() => {
@@ -160,10 +165,11 @@ export default function App() {
   };
 
   const setPopupConfig = (newPopup: PopupConfig | ((prev: PopupConfig) => PopupConfig)) => {
-    setPopupConfigState((prev) => {
-      const next = typeof newPopup === 'function' ? newPopup(prev) : newPopup;
-      savePersistedPopupConfig(next);
-      return next;
+    setDualPopupsConfigState((prev) => {
+      const nextPopup1 = typeof newPopup === 'function' ? newPopup(prev.popup1) : newPopup;
+      const nextDual = { ...prev, popup1: nextPopup1 };
+      savePersistedDualPopupsConfig(nextDual);
+      return nextDual;
     });
   };
 
@@ -207,6 +213,22 @@ export default function App() {
     window.history.pushState(null, '', '/');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Dynamic Page Scope for Layer Popup Precision Targeting
+  const getCurrentScope = (): PopupScopeTarget => {
+    if (viewMode === 'kcj_radio') return 'kcj_radio';
+    if (viewMode === 'sub_news') {
+      if (typeof window !== 'undefined' && window.location.pathname.includes('/article/')) {
+        return 'sub_detail';
+      }
+      return 'sub_home';
+    }
+    if (typeof window !== 'undefined' && window.location.pathname.includes('/article/')) {
+      return 'main_detail';
+    }
+    return 'main_home';
+  };
+  const currentScope = getCurrentScope();
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8f6f2] font-sans">
@@ -342,8 +364,13 @@ export default function App() {
         )}
       </div>
 
-      {/* Common Layer Popup System */}
-      <LayerPopup config={popupConfig} />
+      {/* Common Layer Popup System (Dual popups support with precise page scope targeting) */}
+      {dualPopupsConfig?.popup1 && (
+        <LayerPopup config={dualPopupsConfig.popup1} currentScope={currentScope} />
+      )}
+      {dualPopupsConfig?.popup2 && (
+        <LayerPopup config={dualPopupsConfig.popup2} currentScope={currentScope} />
+      )}
 
       {/* Admin CMS Desk Modal */}
       {showAdminModal && (
@@ -360,8 +387,10 @@ export default function App() {
           onUpdateCategories={setCategories}
           adSettings={adSettings}
           onUpdateAdSettings={setAdSettings}
-          popupConfig={popupConfig}
-          onUpdatePopupConfig={setPopupConfig}
+          popupConfig={dualPopupsConfig.popup1}
+          onUpdatePopupConfig={(cfg) => setDualPopupsConfig({ ...dualPopupsConfig, popup1: cfg })}
+          dualPopupsConfig={dualPopupsConfig}
+          onUpdateDualPopupsConfig={setDualPopupsConfig}
         />
       )}
 
