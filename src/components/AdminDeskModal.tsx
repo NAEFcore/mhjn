@@ -1437,7 +1437,8 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                                 value={art.pageNumber || 1}
                                 onChange={(e) => {
                                   const targetP = Number(e.target.value);
-                                  onUpdateArticles(articles.map(a => a.id === art.id ? { ...a, pageNumber: targetP } : a));
+                                  const secName = targetP === 1 ? '1면 (종합)' : targetP === 2 ? '2면 (문화·예술)' : targetP === 3 ? '3면 (전통·유산)' : '4면 (K-컬처·라이프)';
+                                  onUpdateArticles(articles.map(a => a.id === art.id ? { ...a, pageNumber: targetP, sectionPage: secName } : a));
                                 }}
                                 className="bg-[#f5f1eb] border border-[#d8d3cb] rounded px-1 py-0.5"
                               >

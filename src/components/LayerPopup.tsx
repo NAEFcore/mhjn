@@ -113,18 +113,18 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
     return null;
   }
 
-  // Calculate position class
+  // Calculate position class (Responsive: centers on mobile screens and respects alignment on tablets/desktops)
   const getPositionClass = () => {
     switch (config.position) {
       case 'TOP_LEFT':
-        return 'top-4 left-4 sm:top-8 sm:left-8';
+        return 'top-14 sm:top-8 left-3 sm:left-8 right-3 sm:right-auto';
       case 'BOTTOM_LEFT':
-        return 'bottom-4 left-4 sm:bottom-8 sm:left-8';
+        return 'bottom-4 sm:bottom-8 left-3 sm:left-8 right-3 sm:right-auto';
       case 'BOTTOM_RIGHT':
-        return 'bottom-4 right-4 sm:bottom-8 sm:right-8';
+        return 'bottom-4 sm:bottom-8 right-3 sm:right-8 left-3 sm:left-auto';
       case 'TOP_RIGHT':
       default:
-        return 'top-4 right-4 sm:top-8 sm:right-8';
+        return 'top-14 sm:top-8 right-3 sm:right-8 left-3 sm:left-auto';
     }
   };
 
@@ -132,17 +132,16 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
     <div
       id={`layer-popup-${config.id}`}
       style={{
-        width: `${config.width || 340}px`,
         zIndex: config.zIndex || 9999,
       }}
-      className={`fixed ${getPositionClass()} max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-slate-300 overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in zoom-in-95`}
+      className={`fixed ${getPositionClass()} w-auto sm:w-[${config.width || 340}px] max-w-[calc(100vw-24px)] mx-auto sm:mx-0 bg-white rounded-2xl shadow-2xl border border-slate-300 overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in zoom-in-95`}
     >
       {/* Header bar with title and close button */}
-      <div className="bg-[#1b2a47] text-white px-3.5 py-2 flex items-center justify-between text-xs font-bold font-serif-kr">
+      <div className="bg-[#1b2a47] text-white px-3.5 py-2.5 flex items-center justify-between text-xs font-bold font-serif-kr select-none">
         <span className="truncate pr-2">{config.name || '한국문화저널 특별 공지'}</span>
         <button
           onClick={handleClose}
-          className="text-slate-300 hover:text-white p-0.5 rounded transition-colors"
+          className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center min-w-[32px] min-h-[32px]"
           title="닫기"
           aria-label="팝업 닫기"
         >
@@ -151,7 +150,7 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
       </div>
 
       {/* Popup Body */}
-      <div className="p-3 bg-white flex flex-col space-y-2.5">
+      <div className="p-3 bg-white flex flex-col space-y-2.5 max-h-[70vh] overflow-y-auto">
         {config.imageUrl && (
           <div className="rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
             {config.linkUrl ? (
@@ -168,7 +167,7 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
                   className="w-full h-auto object-cover max-h-[320px] transition-transform duration-300 group-hover:scale-102"
                 />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 text-white text-[11px] px-2 py-1 rounded-full flex items-center gap-1 font-bold">
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 text-white text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1 font-bold">
                     <span>자세히 보기</span>
                     <ExternalLink className="w-3 h-3" />
                   </span>
@@ -206,27 +205,27 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
       </div>
 
       {/* Footer Utility: "오늘 하루 이 창을 열지 않기" & "닫기" */}
-      <div className="bg-[#f8f6f2] border-t border-slate-200 px-3 py-2 flex items-center justify-between text-[11px] text-slate-600 font-sans">
-        <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900">
+      <div className="bg-[#f8f6f2] border-t border-slate-200 px-3.5 py-2.5 flex items-center justify-between text-[11px] text-slate-600 font-sans gap-2">
+        <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900 py-1">
           <input
             type="checkbox"
             checked={dontShowToday}
             onChange={(e) => setDontShowToday(e.target.checked)}
-            className="rounded border-slate-300 text-[#1b2a47] focus:ring-amber-500 w-3.5 h-3.5"
+            className="rounded border-slate-300 text-[#1b2a47] focus:ring-amber-500 w-4 h-4"
           />
-          <span>오늘 하루 이 창을 열지 않기</span>
+          <span className="text-[11px]">오늘 하루 보지 않기</span>
         </label>
 
         <div className="flex items-center gap-2">
           <button
             onClick={handleDismissToday}
-            className="px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-800 underline font-medium"
+            className="px-2 py-1.5 text-[11px] text-slate-500 hover:text-slate-800 underline font-medium"
           >
             오늘 그만보기
           </button>
           <button
             onClick={handleClose}
-            className="px-3 py-1 bg-[#1b2a47] hover:bg-[#253960] text-white rounded-lg font-bold text-xs transition-colors shadow-2xs"
+            className="px-3.5 py-1.5 bg-[#1b2a47] hover:bg-[#253960] text-white rounded-lg font-bold text-xs transition-colors shadow-2xs min-h-[32px] flex items-center justify-center"
           >
             닫기
           </button>

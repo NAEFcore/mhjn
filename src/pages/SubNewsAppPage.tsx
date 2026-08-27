@@ -258,13 +258,99 @@ export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
           {/* Mobile menu toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-700"
+            className="md:hidden p-2.5 rounded-lg border border-slate-300 text-slate-800 hover:bg-slate-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"
+            aria-label={mobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileMenuOpen ? <X className="w-5 h-5 text-rose-600" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
 
-        {/* Categories Navigation Bar */}
+        {/* Mobile Navigation Drawer / Dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-white border-t border-b border-slate-200 px-4 py-4 space-y-4 shadow-xl animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <span className="text-xs font-bold text-slate-500 font-serif-kr">분야별 뉴스 카테고리</span>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-xs font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1"
+              >
+                <X className="w-4 h-4" /> 닫기
+              </button>
+            </div>
+
+            {/* Sub Categories Grid */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setActiveCategory('all');
+                  if (selectedArticle) handleBackToList();
+                  setMobileMenuOpen(false);
+                }}
+                className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between transition-all ${
+                  activeCategory === 'all'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <span>📰 전체보기</span>
+                <span className="text-[10px] opacity-75">{subArticles.length}</span>
+              </button>
+
+              {SUB_NEWS_CATEGORIES.map((cat) => {
+                const count = subArticles.filter(a => a.subNewsCategory === cat.id).length;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      setActiveCategory(cat.id);
+                      if (selectedArticle) handleBackToList();
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between transition-all ${
+                      activeCategory === cat.id
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span>{cat.icon}</span>
+                      <span className="truncate">{cat.name}</span>
+                    </span>
+                    {count > 0 && <span className="text-[10px] opacity-70 ml-1">({count})</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick Links in Mobile Menu */}
+            <div className="pt-3 border-t border-slate-100 flex flex-col gap-2 text-xs">
+              <button
+                onClick={() => {
+                  onGoToMainNews();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full py-2.5 px-3 bg-[#1b2a47] text-white rounded-lg font-bold flex items-center justify-center gap-2"
+              >
+                <Newspaper className="w-4 h-4 text-amber-400" />
+                <span>한국문화저널 (본지) 바로가기</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (onGoToRadio) onGoToRadio('', lang);
+                  else window.location.href = '/kcj-radio';
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full py-2 px-3 bg-amber-50 text-amber-900 border border-amber-300 rounded-lg font-bold flex items-center justify-center gap-2"
+              >
+                <Radio className="w-4 h-4 text-amber-600" />
+                <span>KCJ Radio 온에어 스튜디오</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Categories Navigation Bar (Desktop & Horizontal Scroll) */}
         <nav className="border-t border-slate-200 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-8">
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-2 text-xs font-bold">

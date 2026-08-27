@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="bg-[#f8fafc] border-b border-gray-200 text-xs text-gray-600 px-4 lg:px-8 py-1.5 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="font-medium text-gray-800 font-serif-kr">
-            2026년 8월 22일 토요일 <span className="text-gray-400 font-normal">|</span> 음력 7월 10일
+            {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
           </span>
           <div className="hidden sm:flex items-center gap-1.5 text-gray-700">
             <Sun className="w-3.5 h-3.5 text-amber-500" />
@@ -118,20 +118,6 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* WP XML Extractor Button */}
-          {onOpenWpXmlExtractor && (
-            <>
-              <button
-                onClick={onOpenWpXmlExtractor}
-                className="hover:text-[#1b2a47] flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 transition-colors"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600" />
-                <span>XML&rarr;CSV 추출기</span>
-              </button>
-              <span className="text-gray-300">|</span>
-            </>
-          )}
-
           <button
             onClick={onOpenCalendar}
             className="hover:text-[#0051a8] flex items-center gap-1 transition-colors text-[11px]"

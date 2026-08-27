@@ -328,7 +328,6 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
         onOpenFactCheck={() => setShowFactCheckModal(true)}
         onOpenEditorial={() => setShowEditorialModal(true)}
         onOpenOmbudsman={() => setShowOmbudsmanModal(true)}
-        onOpenWpXmlExtractor={() => setShowWpXmlModal(true)}
         onOpenAdminDesk={onOpenAdminDesk}
         onOpenRadio={() => onGoToRadio?.()}
         searchQuery={searchQuery}
@@ -445,6 +444,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
         ) : activeCategory === 'paper_edition' ? (
           /* View Mode 2: Newspaper Print Edition Viewer */
           <PaperEditionView
+            articles={articles}
             onSelectArticle={handleOpenArticle}
           />
         ) : activeCategory === 'all' && !searchQuery && !selectedKeyword ? (
