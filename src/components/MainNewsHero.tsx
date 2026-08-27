@@ -33,16 +33,22 @@ export const MainNewsHero: React.FC<MainNewsHeroProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
         {/* Left Featured Top Article (7 Cols) */}
         <div className="lg:col-span-7 flex flex-col justify-between group">
-          <div 
-            onClick={() => onSelectArticle(topArticle)}
-            className="cursor-pointer"
+          <a 
+            href={`/article/${topArticle.id}`}
+            onClick={(e) => {
+              e.preventDefault();
+              onSelectArticle(topArticle);
+            }}
+            className="cursor-pointer block text-inherit no-underline"
           >
             {/* Image Container with Badge */}
             <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full rounded-lg overflow-hidden bg-gray-100 mb-4 shadow-xs">
               <img
                 src={topArticle.imageUrl}
-                alt={topArticle.title}
+                alt={topArticle.imageCaption || topArticle.title}
                 referrerPolicy="no-referrer"
+                loading="eager"
+                decoding="async"
                 className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
               />
               <div className="absolute top-3 left-3 flex items-center gap-1.5">
@@ -71,7 +77,7 @@ export const MainNewsHero: React.FC<MainNewsHeroProps> = ({
             <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed mb-4">
               {topArticle.subtitle || topArticle.summary}
             </p>
-          </div>
+          </a>
 
           {/* Reporter & Metadata Footer */}
           <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-100">
@@ -105,11 +111,15 @@ export const MainNewsHero: React.FC<MainNewsHeroProps> = ({
 
         {/* Right Sub-Headlines List (5 Cols) */}
         <div className="lg:col-span-5 flex flex-col justify-between divide-y divide-gray-100">
-          {subArticles.slice(0, 4).map((art, idx) => (
-            <article
+          {subArticles.slice(0, 4).map((art) => (
+            <a
               key={art.id}
-              onClick={() => onSelectArticle(art)}
-              className="py-3.5 first:pt-0 last:pb-0 cursor-pointer group flex items-start justify-between gap-3 hover:bg-gray-50/80 -mx-2 px-2 rounded-lg transition-colors"
+              href={`/article/${art.id}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onSelectArticle(art);
+              }}
+              className="py-3.5 first:pt-0 last:pb-0 cursor-pointer group flex items-start justify-between gap-3 hover:bg-gray-50/80 -mx-2 px-2 rounded-lg transition-colors text-inherit no-underline"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-1">
@@ -144,12 +154,14 @@ export const MainNewsHero: React.FC<MainNewsHeroProps> = ({
               <div className="w-20 h-16 sm:w-22 sm:h-17 shrink-0 rounded-md overflow-hidden bg-gray-100 border border-gray-100">
                 <img
                   src={art.imageUrl}
-                  alt={art.title}
+                  alt={art.imageCaption || art.title}
                   referrerPolicy="no-referrer"
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
               </div>
-            </article>
+            </a>
           ))}
         </div>
       </div>

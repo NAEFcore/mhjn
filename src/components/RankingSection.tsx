@@ -114,45 +114,52 @@ export const RankingSection: React.FC<RankingSectionProps> = ({
           const rank = index + 1;
           const isTop3 = rank <= 3;
           return (
-            <li
-              key={art.id}
-              onClick={() => onSelectArticle(art)}
-              className="py-2.5 flex items-start gap-3 cursor-pointer group hover:bg-blue-50/50 -mx-2 px-2 rounded-lg transition-colors"
-            >
-              {/* Rank Number */}
-              <span
-                className={`w-5 text-center text-sm font-black shrink-0 ${
-                  isTop3 ? 'text-[#0051a8]' : 'text-gray-400'
-                }`}
+            <li key={art.id}>
+              <a
+                href={`/article/${art.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onSelectArticle(art);
+                }}
+                className="py-2.5 flex items-start gap-3 cursor-pointer group hover:bg-blue-50/50 -mx-2 px-2 rounded-lg transition-colors text-inherit no-underline"
               >
-                {rank}
-              </span>
+                {/* Rank Number */}
+                <span
+                  className={`w-5 text-center text-sm font-black shrink-0 ${
+                    isTop3 ? 'text-[#0051a8]' : 'text-gray-400'
+                  }`}
+                >
+                  {rank}
+                </span>
 
-              {/* Title & Meta */}
-              <div className="flex-1 min-w-0">
-                <h4 className="text-xs sm:text-sm font-medium text-gray-900 group-hover:text-[#0051a8] line-clamp-2 leading-snug transition-colors">
-                  {art.title}
-                </h4>
-                <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
-                  <span className="text-gray-600 font-medium">{art.categoryLabel}</span>
-                  <span>·</span>
-                  {activeTab === 'views' && <span>조회 {art.views.toLocaleString()}</span>}
-                  {activeTab === 'comments' && <span>댓글 {art.commentsCount}개</span>}
-                  {activeTab === 'reactions' && (
-                    <span>공감 {(art.reactions.empathy + art.reactions.info).toLocaleString()}</span>
-                  )}
+                {/* Title & Meta */}
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs sm:text-sm font-medium text-gray-900 group-hover:text-[#0051a8] line-clamp-2 leading-snug transition-colors">
+                    {art.title}
+                  </h4>
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
+                    <span className="text-gray-600 font-medium">{art.categoryLabel}</span>
+                    <span>·</span>
+                    {activeTab === 'views' && <span>조회 {art.views.toLocaleString()}</span>}
+                    {activeTab === 'comments' && <span>댓글 {art.commentsCount}개</span>}
+                    {activeTab === 'reactions' && (
+                      <span>공감 {(art.reactions.empathy + art.reactions.info).toLocaleString()}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Mini thumbnail if top 3 */}
-              {isTop3 && (
-                <img
-                  src={art.imageUrl}
-                  alt={art.title}
-                  referrerPolicy="no-referrer"
-                  className="w-12 h-10 object-cover rounded-sm bg-gray-100 shrink-0 border border-gray-100"
-                />
-              )}
+                {/* Mini thumbnail if top 3 */}
+                {isTop3 && (
+                  <img
+                    src={art.imageUrl}
+                    alt={art.imageCaption || art.title}
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
+                    className="w-12 h-10 object-cover rounded-sm bg-gray-100 shrink-0 border border-gray-100"
+                  />
+                )}
+              </a>
             </li>
           );
         })}

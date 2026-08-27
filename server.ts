@@ -770,7 +770,39 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
 
   const allArticles = getAllArticles();
 
-  // Match /article/:id or /sub-news/article/:id
+  // Category Dictionary for SEO
+  const CATEGORY_MAP: Record<string, { label: string; desc: string }> = {
+    culture_art: {
+      label: '문화·예술',
+      desc: '국보·보물 등 문화유산과 현대 미술, 비엔날레, 문화예술 심층 기사 및 비평'
+    },
+    heritage: {
+      label: '전통유산/문화재',
+      desc: '국보, 보물, 사적 등 국가유산청 공인 문화재 팩트체크 및 무형문화재 전승자 인터뷰'
+    },
+    ceramic_craft: {
+      label: '도예/공예',
+      desc: '달항아리, 고려청자, 분청사기, 현대 도예 명장 및 공예 예술 심층 탐구'
+    },
+    exhibit_perform: {
+      label: '전시/공연',
+      desc: '국립중앙박물관, 국립현대미술관 특별전 및 국악, 판소리, 전통무용 기획 공연'
+    },
+    opinion: {
+      label: '사설·칼럼',
+      desc: '문화예술계 석학, 문화재 위원, 전문 논설위원의 날카로운 사설과 문화시론'
+    },
+    un_sdg: {
+      label: 'UN SDGs',
+      desc: '유네스코 세계유산 보존과 지속가능한 문화 발전 및 글로벌 문화 협력'
+    },
+    paper_edition: {
+      label: '지면신문',
+      desc: '한국문화저널 주간 인쇄 지면 신문 및 1면 탑기사 E-Paper 서비스'
+    }
+  };
+
+  // 1. Match /article/:id or /sub-news/article/:id
   const articleMatch = reqPath.match(/^\/(?:sub-news\/)?article\/([a-zA-Z0-9_-]+)/);
   if (articleMatch) {
     const articleId = articleMatch[1];
@@ -795,6 +827,7 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
     const title = `${article.title} - 한국문화저널`;
     const rawDesc = article.summary || article.content || '';
     const description = rawDesc.slice(0, 160).replace(/[\r\n\t]+/g, ' ').trim();
+    // Enforce canonical URL to standard /article/:id even if accessed via /sub-news/article/:id
     const canonicalUrl = `${baseUrl}/article/${article.id}`;
     const imageUrl = article.imageUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=1200';
     let publishedIso = new Date().toISOString();
@@ -812,51 +845,96 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
 
     const articleJsonLd = {
       "@context": "https://schema.org",
-      "@type": "NewsArticle",
-      "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": canonicalUrl
-      },
-      "headline": article.title,
-      "alternativeHeadline": article.subtitle || "",
-      "description": description,
-      "image": [imageUrl],
-      "datePublished": publishedIso,
-      "dateModified": publishedIso,
-      "author": {
-        "@type": "Person",
-        "name": reporterName,
-        "jobTitle": article.reporter?.title || "기자",
-        "worksFor": {
-          "@type": "NewsMediaOrganization",
-          "name": "한국문화저널"
+      "@graph": [
+        {
+          "@type": "NewsArticle",
+          "@id": `${canonicalUrl}#article`,
+          "isPartOf": {
+            "@type": "WebPage",
+            "@id": canonicalUrl,
+            "name": article.title,
+            "inLanguage": "ko-KR"
+          },
+          "headline": article.title,
+          "alternativeHeadline": article.subtitle || "",
+          "description": description,
+          "image": {
+            "@type": "ImageObject",
+            "url": imageUrl,
+            "caption": article.imageCaption || article.title,
+            "width": 1200,
+            "height": 800
+          },
+          "datePublished": publishedIso,
+          "dateModified": publishedIso,
+          "inLanguage": "ko-KR",
+          "isAccessibleForFree": true,
+          "author": {
+            "@type": "Person",
+            "name": reporterName,
+            "jobTitle": article.reporter?.title || "기자",
+            "worksFor": {
+              "@type": "NewsMediaOrganization",
+              "name": "한국문화저널",
+              "url": baseUrl
+            }
+          },
+          "publisher": {
+            "@type": "NewsMediaOrganization",
+            "name": "한국문화저널",
+            "url": baseUrl,
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600"
+            }
+          },
+          "articleSection": categoryName,
+          "keywords": (article.tags || []).join(", "),
+          "speakable": {
+            "@type": "SpeakableSpecification",
+            "cssSelector": ["[itemprop='headline']", "[itemprop='articleBody']"]
+          }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "@id": `${canonicalUrl}#breadcrumb`,
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "한국문화저널 홈",
+              "item": baseUrl
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": categoryName,
+              "item": `${baseUrl}/?category=${article.category || 'culture_art'}`
+            },
+            {
+              "@type": "ListItem",
+              "position": 3,
+              "name": article.title,
+              "item": canonicalUrl
+            }
+          ]
         }
-      },
-      "publisher": {
-        "@type": "NewsMediaOrganization",
-        "name": "한국문화저널",
-        "url": baseUrl,
-        "logo": {
-          "@type": "ImageObject",
-          "url": `${baseUrl}/favicon.ico`
-        }
-      },
-      "articleSection": categoryName,
-      "keywords": (article.tags || []).join(", ")
+      ]
     };
 
-    // Pre-rendered HTML for Googlebot / Naver Yeti
+    // Pre-rendered HTML for Search Engine Crawlers (Googlebot, Naver Yeti, Daum)
     const articleBodyHtml = `
-      <!-- Server-Side Pre-rendered Content for Search Engine Crawlers (Googlebot, Naver Yeti) -->
-      <div id="ssr-article-container" style="max-width:860px;margin:0 auto;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;color:#1e293b;line-height:1.75;">
-        <nav style="font-size:13px;color:#64748b;margin-bottom:16px;">
+      <!-- Server-Side Pre-rendered Content for Search Engine Crawlers -->
+      <article id="ssr-article-container" itemscope itemtype="https://schema.org/NewsArticle" style="max-width:860px;margin:0 auto;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;color:#1e293b;line-height:1.75;">
+        <nav aria-label="브레드크럼" style="font-size:13px;color:#64748b;margin-bottom:16px;">
           <a href="/" style="color:#1b2a47;text-decoration:none;font-weight:bold;">한국문화저널 홈</a> &gt; 
-          <span style="font-weight:600;color:#1b2a47;">${escapeHtml(categoryName)}</span>
+          <a href="/?category=${escapeAttribute(article.category || 'culture_art')}" style="color:#1b2a47;text-decoration:none;font-weight:600;">${escapeHtml(categoryName)}</a> &gt;
+          <span style="color:#94a3b8;">${escapeHtml(article.title)}</span>
         </nav>
         <header style="margin-bottom:24px;">
           <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">
             <span style="display:inline-block;padding:3px 8px;background:#1b2a47;color:#fbbf24;font-weight:bold;border-radius:4px;font-size:12px;">${escapeHtml(article.badge || '단독')}</span>
-            <span style="font-size:13px;font-weight:bold;color:#475569;">${escapeHtml(article.subCategory || categoryName)}</span>
+            <span itemprop="articleSection" style="font-size:13px;font-weight:bold;color:#475569;">${escapeHtml(article.subCategory || categoryName)}</span>
           </div>
           <h1 itemprop="headline" style="font-size:28px;font-weight:900;line-height:1.35;color:#0f172a;margin:0 0 12px 0;">${escapeHtml(article.title)}</h1>
           ${article.subtitle ? `<h2 itemprop="alternativeHeadline" style="font-size:17px;font-weight:600;line-height:1.45;color:#475569;margin:0 0 16px 0;border-left:3px solid #1b2a47;padding-left:12px;">${escapeHtml(article.subtitle)}</h2>` : ''}
@@ -868,7 +946,7 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
         </header>
         ${article.imageUrl ? `
         <figure style="margin:0 0 24px 0;">
-          <img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(article.imageCaption || article.title)}" style="width:100%;max-height:560px;object-fit:cover;border-radius:12px;" />
+          <img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(article.imageCaption || article.title)}" loading="eager" style="width:100%;max-height:560px;object-fit:cover;border-radius:12px;" />
           ${article.imageCaption ? `<figcaption style="font-size:12px;color:#64748b;margin-top:8px;line-height:1.4;">${escapeHtml(article.imageCaption)}</figcaption>` : ''}
         </figure>` : ''}
         <div itemprop="articleBody" style="font-size:17px;line-height:1.85;color:#334155;white-space:pre-line;margin-bottom:32px;">
@@ -882,7 +960,7 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
           <p>본 기사의 저작권은 <strong>(주)한국문화저널미디어</strong>에 있으며, 무단 전재 및 재배포를 금합니다.</p>
           <p>원문 기사 주소 (Canonical URL): <a href="${canonicalUrl}" style="color:#1b2a47;">${canonicalUrl}</a></p>
         </footer>
-      </div>
+      </article>
     `;
 
     let html = template;
@@ -900,7 +978,7 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
     html = html.replace(/<meta\s+property="twitter:url"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:url" content="${escapeAttribute(canonicalUrl)}" />`);
     html = html.replace(/<meta\s+property="twitter:image"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:image" content="${escapeAttribute(imageUrl)}" />`);
     
-    // Inject NewsArticle JSON-LD before </head>
+    // Inject JSON-LD before </head>
     html = html.replace('</head>', `<script type="application/ld+json">\n${JSON.stringify(articleJsonLd, null, 2)}\n</script>\n</head>`);
     
     // Inject pre-rendered body into <div id="root"></div>
@@ -909,7 +987,89 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
     return { html, status: 200 };
   }
 
-  // KCJ Radio Route
+  // 2. Category Route Handler (e.g. ?category=culture_art or /category/:id)
+  const categoryParam = (req.query.category as string) || '';
+  if (categoryParam && CATEGORY_MAP[categoryParam]) {
+    const cat = CATEGORY_MAP[categoryParam];
+    const title = `${cat.label} - 한국문화저널 (Korea Culture Journal)`;
+    const description = `${cat.desc} - 한국문화저널 ${cat.label} 분야 심층 기사 및 속보.`;
+    const canonicalUrl = `${baseUrl}/?category=${categoryParam}`;
+    const categoryArticles = allArticles.filter((a: any) => (a.category === categoryParam || a.categoryLabel === cat.label));
+
+    const categoryJsonLd = {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "CollectionPage",
+          "@id": canonicalUrl,
+          "name": `${cat.label} - 한국문화저널`,
+          "description": description,
+          "url": canonicalUrl,
+          "inLanguage": "ko-KR",
+          "hasPart": categoryArticles.slice(0, 10).map((art: any) => ({
+            "@type": "NewsArticle",
+            "headline": art.title,
+            "url": `${baseUrl}/article/${art.id}`,
+            "datePublished": art.publishedAt
+          }))
+        },
+        {
+          "@type": "BreadcrumbList",
+          "@id": `${canonicalUrl}#breadcrumb`,
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "한국문화저널 홈",
+              "item": baseUrl
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": cat.label,
+              "item": canonicalUrl
+            }
+          ]
+        }
+      ]
+    };
+
+    const categoryBodyHtml = `
+      <div id="ssr-category-container" style="max-width:960px;margin:0 auto;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;color:#1e293b;">
+        <nav aria-label="브레드크럼" style="font-size:13px;color:#64748b;margin-bottom:16px;">
+          <a href="/" style="color:#1b2a47;text-decoration:none;font-weight:bold;">한국문화저널 홈</a> &gt; 
+          <span style="color:#0f172a;font-weight:bold;">${escapeHtml(cat.label)}</span>
+        </nav>
+        <header style="margin-bottom:24px;border-bottom:2px solid #1b2a47;padding-bottom:12px;">
+          <h1 style="font-size:26px;font-weight:bold;color:#0f172a;margin:0 0 6px 0;">${escapeHtml(cat.label)}</h1>
+          <p style="font-size:14px;color:#64748b;margin:0;">${escapeHtml(cat.desc)}</p>
+        </header>
+        <div style="display:grid;gap:16px;">
+          ${categoryArticles.map((art: any) => `
+            <article style="border:1px solid #e2e8f0;padding:16px;border-radius:8px;background:#fff;">
+              <h2 style="font-size:18px;margin:0 0 8px 0;"><a href="/article/${escapeAttribute(art.id)}" style="color:#0f172a;text-decoration:none;font-weight:bold;">${escapeHtml(art.title)}</a></h2>
+              <p style="font-size:13px;color:#64748b;line-height:1.5;margin:0 0 8px 0;">${escapeHtml((art.summary || art.content || '').slice(0, 140))}...</p>
+              <div style="font-size:12px;color:#94a3b8;">${escapeHtml(art.reporter?.name || '한국문화저널')} 기자 · ${escapeHtml(art.publishedAt || '')}</div>
+            </article>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    let html = template;
+    html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+    html = html.replace(/<meta\s+name="title"\s+content="[^"]*"\s*\/?>/i, `<meta name="title" content="${escapeAttribute(title)}" />`);
+    html = html.replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${escapeAttribute(description)}" />`);
+    html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${escapeAttribute(canonicalUrl)}" />`);
+    html = html.replace(/<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:title" content="${escapeAttribute(title)}" />`);
+    html = html.replace(/<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:description" content="${escapeAttribute(description)}" />`);
+    html = html.replace(/<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:url" content="${escapeAttribute(canonicalUrl)}" />`);
+    html = html.replace('</head>', `<script type="application/ld+json">\n${JSON.stringify(categoryJsonLd, null, 2)}\n</script>\n</head>`);
+    html = html.replace('<div id="root"></div>', `<div id="root">${categoryBodyHtml}</div>`);
+    return { html, status: 200 };
+  }
+
+  // 3. KCJ Radio Route
   if (reqPath.startsWith('/kcj-radio')) {
     const title = 'KCJ Radio 디지털 방송국 온에어 스튜디오 - 한국문화저널';
     const description = '대한민국 전통 국악, 판소리, 문화재 해설 및 문화예술 뉴스를 실시간 고품질 오디오로 청취하는 KCJ Radio 온에어 스튜디오.';
@@ -924,7 +1084,7 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
     return { html, status: 200 };
   }
 
-  // Sub News Portal Route
+  // 4. Sub News Portal Route
   if (reqPath.startsWith('/sub-news')) {
     const title = '서브 뉴스 & 분야별 포털 - 한국문화저널';
     const description = '문화예술, 전통유산, 전시/공연, 도예/공예 등 분야별 심층 기사와 포털 서비스를 제공합니다.';
@@ -939,13 +1099,38 @@ function renderPageHtml(template: string, reqPath: string, req: express.Request)
     return { html, status: 200 };
   }
 
-  // Homepage / Default Route
+  // 5. Homepage / Default Route
   const title = '한국문화저널 (Korea Culture Journal) - 문화·예술·전통유산 전문 정론지';
+  const description = '대한민국 대표 문화·예술·헤리티지 정론지 한국문화저널. 국보·보물 문화재 팩트체크, 미술 전시 비평, 무형유산 전승자 심층 인터뷰, 지면 신문 및 최신 문화 속보 제공.';
   const canonicalUrl = `${baseUrl}/`;
+
+  // Pre-rendered top articles list for initial crawler indexing
+  const topArticlesHtml = `
+    <!-- Pre-rendered Home Section for Search Engines -->
+    <main id="ssr-home-container" style="max-width:1200px;margin:0 auto;padding:20px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;">
+      <header style="margin-bottom:20px;border-bottom:2px solid #1b2a47;padding-bottom:12px;">
+        <h1 style="font-size:26px;font-weight:900;color:#0f172a;margin:0 0 6px 0;">한국문화저널 (Korea Culture Journal)</h1>
+        <p style="font-size:14px;color:#475569;margin:0;">대한민국 문화·예술·전통유산 전문 정론지</p>
+      </header>
+      <section style="display:grid;grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));gap:16px;">
+        ${allArticles.slice(0, 8).map((art: any) => `
+          <article style="border:1px solid #e2e8f0;border-radius:8px;padding:14px;background:#fff;">
+            <div style="font-size:12px;font-weight:bold;color:#1b2a47;margin-bottom:4px;">${escapeHtml(art.categoryLabel || '문화')}</div>
+            <h2 style="font-size:16px;font-weight:bold;margin:0 0 6px 0;"><a href="/article/${escapeAttribute(art.id)}" style="color:#0f172a;text-decoration:none;">${escapeHtml(art.title)}</a></h2>
+            <p style="font-size:13px;color:#64748b;line-height:1.5;margin:0 0 8px 0;">${escapeHtml((art.summary || art.content || '').slice(0, 100))}...</p>
+            <div style="font-size:11px;color:#94a3b8;">${escapeHtml(art.reporter?.name || '한국문화저널')} 기자 · ${escapeHtml(art.publishedAt || '')}</div>
+          </article>
+        `).join('')}
+      </section>
+    </main>
+  `;
 
   let html = template;
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<meta\s+name="title"\s+content="[^"]*"\s*\/?>/i, `<meta name="title" content="${escapeAttribute(title)}" />`);
+  html = html.replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${escapeAttribute(description)}" />`);
   html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${escapeAttribute(canonicalUrl)}" />`);
+  html = html.replace('<div id="root"></div>', `<div id="root">${topArticlesHtml}</div>`);
   return { html, status: 200 };
 }
 
@@ -977,6 +1162,14 @@ app.get('/sitemap.xml', (req, res) => {
   const baseUrl = 'https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app';
   const currentDate = new Date().toISOString().split('T')[0];
   const allArticles = getAllArticles();
+
+  const categories = ['culture_art', 'heritage', 'ceramic_craft', 'exhibit_perform', 'opinion', 'un_sdg', 'paper_edition'];
+  const categoryUrls = categories.map((cat) => `  <url>
+    <loc>${baseUrl}/?category=${cat}</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>`).join('\n');
 
   const articleUrls = allArticles.map((art) => {
     const pubDate = (art.publishedAt || currentDate).replace(/\./g, '-');
@@ -1028,6 +1221,7 @@ app.get('/sitemap.xml', (req, res) => {
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
+${categoryUrls}
 ${articleUrls}
 </urlset>`;
   res.send(xml);

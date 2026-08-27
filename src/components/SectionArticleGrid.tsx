@@ -76,18 +76,24 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
           const isSaved = bookmarkedIds.has(article.id);
 
           return (
-            <article
+            <a
               key={article.id}
-              onClick={() => onSelectArticle(article)}
-              className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer"
+              href={`/article/${article.id}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onSelectArticle(article);
+              }}
+              className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer text-inherit no-underline"
             >
               <div>
                 {/* Image */}
                 <div className="relative aspect-[16/10] bg-gray-100 overflow-hidden">
                   <img
                     src={article.imageUrl}
-                    alt={article.title}
+                    alt={article.imageCaption || article.title}
                     referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"
                   />
                   <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
@@ -103,7 +109,11 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
 
                   {/* Bookmark Button */}
                   <button
-                    onClick={(e) => onToggleBookmark(article.id, e)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onToggleBookmark(article.id, e);
+                    }}
                     title={isSaved ? '스크랩 해제' : '기사 스크랩'}
                     className={`absolute top-2.5 right-2.5 p-1.5 rounded-full backdrop-blur-xs transition-colors ${
                       isSaved
@@ -163,7 +173,7 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
                   </span>
                 </div>
               </div>
-            </article>
+            </a>
           );
         })}
       </div>

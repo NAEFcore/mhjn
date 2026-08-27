@@ -43,31 +43,67 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700;900&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Schema.org JSON-LD Structured Data for NewsMediaOrganization -->
+    <!-- Schema.org JSON-LD Structured Data: NewsMediaOrganization & WebSite -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "NewsMediaOrganization",
-      "name": "한국문화저널",
-      "alternateName": "Korea Culture Journal",
-      "url": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/",
-      "logo": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=300",
-      "sameAs": [
-        "https://www.facebook.com/kculturejournal",
-        "https://twitter.com/kculturejournal"
-      ],
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "중구로 61 4F 전관",
-        "addressLocality": "부산시 중구",
-        "postalCode": "48924",
-        "addressCountry": "KR"
-      },
-      "telephone": "+82-51-241-1323",
-      "email": "soobakmu@naver.com",
-      "foundingDate": "2014-05-12",
-      "ethicsPolicy": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/ethics",
-      "correctionsPolicy": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/corrections"
+      "@graph": [
+        {
+          "@type": ["NewsMediaOrganization", "Organization"],
+          "@id": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/#organization",
+          "name": "한국문화저널",
+          "alternateName": ["Korea Culture Journal", "(주)한국문화저널미디어", "KCJ News"],
+          "legalName": "(주)한국문화저널미디어",
+          "url": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600",
+            "width": 600,
+            "height": 400
+          },
+          "sameAs": [
+            "https://www.facebook.com/kculturejournal",
+            "https://twitter.com/kculturejournal"
+          ],
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "중구로 61 4F 전관",
+            "addressLocality": "부산시 중구",
+            "postalCode": "48924",
+            "addressCountry": "KR"
+          },
+          "telephone": "+82-51-241-1323",
+          "email": "soobakmu@naver.com",
+          "foundingDate": "2014-05-12",
+          "inLanguage": "ko-KR",
+          "knowsLanguage": ["ko-KR", "en-US"],
+          "publishingPrinciples": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/ethics",
+          "ethicsPolicy": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/ethics",
+          "correctionsPolicy": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/corrections",
+          "verificationFactCheckingPolicy": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/factcheck",
+          "unnamedSourcesPolicy": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/sources",
+          "diversityPolicy": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/diversity"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/#website",
+          "url": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/",
+          "name": "한국문화저널 (Korea Culture Journal)",
+          "description": "문화·예술·전통유산·도예·공예·지면신문 전문 정론지",
+          "publisher": {
+            "@id": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/#organization"
+          },
+          "inLanguage": "ko-KR",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://ais-pre-6o4ywcjcstk7ro5figwt3r-87873142145.asia-northeast1.run.app/?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
     }
     </script>
   </head>

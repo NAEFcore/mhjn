@@ -214,16 +214,66 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Dynamic Page Scope for Layer Popup Precision Targeting
+  // Dynamic reactive URL path tracker for SPA navigations and Popup targeting
+  const [currentPath, setCurrentPath] = useState<string>(() => 
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname;
+        setCurrentPath(path);
+        if (path.startsWith('/kcj-radio')) {
+          setViewMode('kcj_radio');
+        } else if (path.startsWith('/sub-news')) {
+          setViewMode('sub_news');
+        } else if (path.startsWith('/amp')) {
+          setViewMode('amp_mobile');
+        }
+      }
+    };
+
+    // Intercept pushState & replaceState to notify SPA page changes
+    const origPush = window.history.pushState;
+    const origReplace = window.history.replaceState;
+
+    window.history.pushState = function (...args) {
+      const result = origPush.apply(this, args);
+      handleLocationChange();
+      window.dispatchEvent(new Event('kculture:locationchange'));
+      return result;
+    };
+
+    window.history.replaceState = function (...args) {
+      const result = origReplace.apply(this, args);
+      handleLocationChange();
+      window.dispatchEvent(new Event('kculture:locationchange'));
+      return result;
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('kculture:locationchange', handleLocationChange);
+
+    return () => {
+      window.history.pushState = origPush;
+      window.history.replaceState = origReplace;
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('kculture:locationchange', handleLocationChange);
+    };
+  }, []);
+
+  // Dynamic Page Scope for Layer Popup Precision Targeting (matches PopupScopeTarget)
   const getCurrentScope = (): PopupScopeTarget => {
-    if (viewMode === 'kcj_radio') return 'kcj_radio';
-    if (viewMode === 'sub_news') {
-      if (typeof window !== 'undefined' && window.location.pathname.includes('/article/')) {
+    const path = typeof window !== 'undefined' ? window.location.pathname : currentPath;
+    if (viewMode === 'kcj_radio' || path.startsWith('/kcj-radio')) return 'kcj_radio';
+    if (viewMode === 'sub_news' || path.startsWith('/sub-news')) {
+      if (path.includes('/article/')) {
         return 'sub_detail';
       }
       return 'sub_home';
     }
-    if (typeof window !== 'undefined' && window.location.pathname.includes('/article/')) {
+    if (path.includes('/article/')) {
       return 'main_detail';
     }
     return 'main_home';

@@ -577,7 +577,11 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column (8 Cols): Main Article & Comments & Bottom Back Button */}
-          <article className="lg:col-span-8 space-y-6">
+          <article 
+            className="lg:col-span-8 space-y-6"
+            itemScope
+            itemType="https://schema.org/NewsArticle"
+          >
         
         {/* Article Headline Header */}
         <header className="space-y-4 border-b border-gray-300 pb-6">
@@ -599,7 +603,7 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
                 {article.badge}
               </span>
             )}
-            <span className="text-xs font-bold text-[#1b2a47] font-serif-kr">
+            <span className="text-xs font-bold text-[#1b2a47] font-serif-kr" itemProp="articleSection">
               {displayCategory}
             </span>
             {article.sectionPage && (
@@ -610,20 +614,31 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
           </div>
 
           {/* Main Title */}
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black font-serif-kr text-slate-900 leading-tight tracking-tight">
+          <h1 
+            className="text-2xl sm:text-3xl md:text-4xl font-black font-serif-kr text-slate-900 leading-tight tracking-tight"
+            itemProp="headline"
+          >
             {displayTitle}
           </h1>
 
           {/* Subtitle */}
           {displaySubtitle && (
-            <h2 className="text-sm sm:text-base md:text-lg text-slate-700 font-serif-kr leading-relaxed border-l-2 border-[#1b2a47] pl-3 py-0.5">
+            <h2 
+              className="text-sm sm:text-base md:text-lg text-slate-700 font-serif-kr leading-relaxed border-l-2 border-[#1b2a47] pl-3 py-0.5"
+              itemProp="alternativeHeadline"
+            >
               {displaySubtitle}
             </h2>
           )}
 
           {/* Reporter Byline & Metadata Bar */}
           <div className="pt-2 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500 font-sans border-t border-gray-200">
-            <div className="flex items-center gap-3">
+            <div 
+              className="flex items-center gap-3"
+              itemProp="author"
+              itemScope
+              itemType="https://schema.org/Person"
+            >
               <img
                 src={article.reporter.avatar}
                 alt={article.reporter.name}
@@ -632,10 +647,10 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
               />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-900 text-sm font-serif-kr">
+                  <span className="font-bold text-slate-900 text-sm font-serif-kr" itemProp="name">
                     {article.reporter.name}
                   </span>
-                  <span className="text-slate-500 font-serif-kr text-xs">
+                  <span className="text-slate-500 font-serif-kr text-xs" itemProp="jobTitle">
                     {article.reporter.title}
                   </span>
                 </div>
@@ -649,7 +664,7 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
               <div className="flex items-center gap-3 text-[11px] text-slate-500">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  송고 {article.publishedAt}
+                  송고 <time itemProp="datePublished" dateTime={article.publishedAt}>{article.publishedAt}</time>
                 </span>
                 <span className="flex items-center gap-1">
                   <Eye className="w-3.5 h-3.5 text-slate-400" />
@@ -658,7 +673,7 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
               </div>
               {article.updatedAt && (
                 <p className="text-[10px] text-slate-400">
-                  최종수정 {article.updatedAt}
+                  최종수정 <time itemProp="dateModified" dateTime={article.updatedAt}>{article.updatedAt}</time>
                 </p>
               )}
             </div>
@@ -1165,15 +1180,21 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {relatedArticles.map((rel) => (
-                <div
+                <a
                   key={rel.id}
-                  onClick={() => onSelectRelatedArticle(rel)}
-                  className="bg-white rounded-xl border border-[#d8d3cb] p-3.5 flex gap-3 cursor-pointer hover:border-[#1b2a47] hover:shadow-xs transition-all group"
+                  href={`/article/${rel.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onSelectRelatedArticle(rel);
+                  }}
+                  className="bg-white rounded-xl border border-[#d8d3cb] p-3.5 flex gap-3 cursor-pointer hover:border-[#1b2a47] hover:shadow-xs transition-all group text-inherit no-underline"
                 >
                   <img
                     src={rel.imageUrl}
-                    alt={rel.title}
+                    alt={rel.imageCaption || rel.title}
                     referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
                     className="w-20 h-20 rounded-lg object-cover bg-slate-100 shrink-0"
                   />
                   <div className="flex-1 min-w-0">
@@ -1187,7 +1208,7 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
                       {rel.reporter.name} 기자 · {rel.publishedAt}
                     </p>
                   </div>
-                </div>
+                </a>
               ))}
             </div>
           </section>

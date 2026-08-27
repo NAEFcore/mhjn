@@ -17,6 +17,25 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [dontShowToday, setDontShowToday] = useState(false);
+  const [pathKey, setPathKey] = useState(() => 
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
+
+  // Listen to SPA location changes so popups re-evaluate their scope instantly on navigation
+  useEffect(() => {
+    const handleLocation = () => {
+      if (typeof window !== 'undefined') {
+        setPathKey(window.location.pathname);
+      }
+    };
+
+    window.addEventListener('popstate', handleLocation);
+    window.addEventListener('kculture:locationchange', handleLocation);
+    return () => {
+      window.removeEventListener('popstate', handleLocation);
+      window.removeEventListener('kculture:locationchange', handleLocation);
+    };
+  }, []);
 
   useEffect(() => {
     if (!config) {
@@ -34,22 +53,25 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
       return;
     }
 
-    // Determine current scope if not passed
-    let activeScope = currentScope;
-    if (!activeScope && typeof window !== 'undefined') {
+    // Determine current active page scope accurately
+    let activeScope: PopupScopeTarget = currentScope || 'main_home';
+    if (typeof window !== 'undefined') {
       const path = window.location.pathname;
       if (path.startsWith('/kcj-radio')) {
         activeScope = 'kcj_radio';
       } else if (path.startsWith('/sub-news')) {
         activeScope = path.includes('/article/') ? 'sub_detail' : 'sub_home';
+      } else if (path.includes('/article/')) {
+        activeScope = 'main_detail';
       } else {
-        activeScope = path.includes('/article/') ? 'main_detail' : 'main_home';
+        activeScope = 'main_home';
       }
     }
 
-    // Check scope match: 'all' matches everything, otherwise exact match
-    if (config.pageScope && config.pageScope !== 'all' && activeScope) {
-      if (config.pageScope !== activeScope) {
+    // Check scope match: 'all' matches everything, otherwise exact match required
+    const targetScope = config.pageScope || 'all';
+    if (targetScope !== 'all' && activeScope) {
+      if (targetScope !== activeScope) {
         setIsVisible(false);
         return;
       }
@@ -62,14 +84,14 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
       const parsedTime = parseInt(dismissedAt, 10);
       const now = Date.now();
       const twentyFourHours = 24 * 60 * 60 * 1000;
-      if (now - parsedTime < twentyFourHours) {
+      if (!isNaN(parsedTime) && now - parsedTime < twentyFourHours) {
         setIsVisible(false);
         return;
       }
     }
 
     setIsVisible(true);
-  }, [config, currentScope, forcePreview]);
+  }, [config, currentScope, pathKey, forcePreview]);
 
   const handleClose = () => {
     if (dontShowToday) {
