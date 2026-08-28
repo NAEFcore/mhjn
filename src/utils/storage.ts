@@ -72,11 +72,10 @@ export const DEFAULT_DUAL_POPUPS_CONFIG: DualPopupsConfig = {
 
 export const DEFAULT_POPUP_CONFIG: PopupConfig = DEFAULT_POPUP_CONFIG_1;
 
-// Load saved articles with smart multi-key fallback & user-created preservation
+// Load saved articles with smart fallback (Firestore is the Source of Truth)
 export function loadPersistedArticles(): Article[] {
   try {
-    // 1. Try current master key
-    const saved = localStorage.getItem(STORAGE_KEYS.ARTICLES_CURRENT) || localStorage.getItem(STORAGE_KEYS.ARTICLES_LEGACY);
+    const saved = localStorage.getItem(STORAGE_KEYS.ARTICLES_CURRENT);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -84,43 +83,54 @@ export function loadPersistedArticles(): Article[] {
       }
     }
   } catch (e) {
-    console.warn('Failed to load articles from storage:', e);
+    console.warn('Failed to load articles cache from localStorage:', e);
   }
 
   return INITIAL_ARTICLES;
 }
 
-// Save articles safely in client-side cache with quota management (Firestore is Source of Truth)
+// Helper to sanitize an article for lightweight localStorage cache (< 1KB per article)
+function sanitizeArticleForCache(art: Article): Article {
+  return {
+    ...art,
+    // Store only summary or first 300 characters of content to guarantee < 100KB total cache
+    content: art.summary ? art.summary : (art.content && art.content.length > 300 ? art.content.slice(0, 300) + '...' : (art.content || '')),
+    contentEn: art.contentEn && art.contentEn.length > 200 ? art.contentEn.slice(0, 200) + '...' : (art.contentEn || ''),
+  };
+}
+
+// Save articles safely in client-side cache with strict quota management (Firestore is Source of Truth)
 export function savePersistedArticles(articles: Article[]): void {
-  // 1. Remove legacy duplicate keys to reclaim localStorage quota
+  if (!Array.isArray(articles)) return;
+
+  // 1. Proactively purge old redundant legacy & backup keys to free browser quota
   try {
     localStorage.removeItem(STORAGE_KEYS.ARTICLES_LEGACY);
     localStorage.removeItem(STORAGE_KEYS.ARTICLES_BACKUP);
+    localStorage.removeItem('kculture_articles_v2');
+    localStorage.removeItem('kculture_articles_v1');
+    localStorage.removeItem('kculture_articles_master');
   } catch {}
 
-  // 2. Cache recent articles safely without exceeding browser localStorage quota
+  // 2. Cache only the top 50 recent articles with truncated content to stay well under quota (e.g. ~50KB total)
   try {
-    // Keep the most recent 50 articles in local cache for fast initial boot
-    const cacheSlice = articles.slice(0, 50);
+    const cacheSlice = articles.slice(0, 50).map(sanitizeArticleForCache);
     const jsonStr = JSON.stringify(cacheSlice);
     localStorage.setItem(STORAGE_KEYS.ARTICLES_CURRENT, jsonStr);
   } catch (e) {
-    // Handle QuotaExceededError gracefully by pruning content or cache size
+    // If quota is still somehow tight, reduce to 15 articles
     try {
-      const minimalSlice = articles.slice(0, 20).map(a => ({
-        ...a,
-        content: a.content && a.content.length > 600 ? a.content.slice(0, 600) + '...' : a.content,
-      }));
+      const minimalSlice = articles.slice(0, 15).map(sanitizeArticleForCache);
       localStorage.setItem(STORAGE_KEYS.ARTICLES_CURRENT, JSON.stringify(minimalSlice));
     } catch {
-      // If still restricted, safely remove local key without breaking app execution
+      // In extreme cases, clear the local cache key entirely without interrupting execution
       try {
         localStorage.removeItem(STORAGE_KEYS.ARTICLES_CURRENT);
       } catch {}
     }
   }
 
-  // 3. Broadcast sync to backend server in background
+  // 3. Background server upsert sync
   try {
     fetch('/api/articles/sync', {
       method: 'POST',
