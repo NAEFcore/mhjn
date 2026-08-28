@@ -117,24 +117,28 @@ export const LayerPopup: React.FC<LayerPopupProps> = ({
   const getPositionClass = () => {
     switch (config.position) {
       case 'TOP_LEFT':
-        return 'top-14 sm:top-8 left-3 sm:left-8 right-3 sm:right-auto';
+        return 'top-16 sm:top-10 left-3 sm:left-8 right-3 sm:right-auto';
       case 'BOTTOM_LEFT':
         return 'bottom-4 sm:bottom-8 left-3 sm:left-8 right-3 sm:right-auto';
       case 'BOTTOM_RIGHT':
         return 'bottom-4 sm:bottom-8 right-3 sm:right-8 left-3 sm:left-auto';
       case 'TOP_RIGHT':
       default:
-        return 'top-14 sm:top-8 right-3 sm:right-8 left-3 sm:left-auto';
+        return 'top-16 sm:top-10 right-3 sm:right-8 left-3 sm:left-auto';
     }
   };
+
+  const popupWidth = config.width || 340;
 
   return (
     <div
       id={`layer-popup-${config.id}`}
       style={{
         zIndex: config.zIndex || 9999,
+        width: `${popupWidth}px`,
+        maxWidth: 'calc(100vw - 24px)',
       }}
-      className={`fixed ${getPositionClass()} w-auto sm:w-[${config.width || 340}px] max-w-[calc(100vw-24px)] mx-auto sm:mx-0 bg-white rounded-2xl shadow-2xl border border-slate-300 overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in zoom-in-95`}
+      className={`fixed ${getPositionClass()} mx-auto sm:mx-0 bg-white rounded-2xl shadow-2xl border border-slate-300 overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in zoom-in-95`}
     >
       {/* Header bar with title and close button */}
       <div className="bg-[#1b2a47] text-white px-3.5 py-2.5 flex items-center justify-between text-xs font-bold font-serif-kr select-none">

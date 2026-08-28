@@ -30,7 +30,8 @@ import {
   Sparkles,
   Bot,
   RotateCcw,
-  FileCode
+  FileCode,
+  Save
 } from 'lucide-react';
 import { 
   Article, 
@@ -65,7 +66,7 @@ import { RssAutoCollectorTab } from './RssAutoCollectorTab';
 import { McstRssCollectorTab } from './McstRssCollectorTab';
 import { PopupManagerTab } from './PopupManagerTab';
 import { WordPressImportTab } from './WordPressImportTab';
-import { saveArticleToFirestore, deleteArticleFromFirestore } from '../firebase';
+import { saveArticleToFirestore, deleteArticleFromFirestore, saveArticlesBatchToFirestore } from '../firebase';
 
 interface AdminDeskModalProps {
   onClose: () => void;
@@ -111,6 +112,13 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
 
   // Tabs: 'articles' | 'write' | 'reporters' | 'categories' | 'media' | 'paper_layout' | 'events' | 'comments' | 'sheets_sync' | 'ads' | 'rss_collector'
   const [activeTab, setActiveTab] = useState<string>(initialTab);
+
+  // Paper Edition Workspace States (1면~4면 지면 직접 편성 데스크)
+  const [paperSearchTerm, setPaperSearchTerm] = useState('');
+  const [paperSearchCategory, setPaperSearchCategory] = useState<string>('all');
+  const [selectedPaperPage, setSelectedPaperPage] = useState<number>(1);
+  const [paperSaveMessage, setPaperSaveMessage] = useState<string | null>(null);
+  const [isSavingPaper, setIsSavingPaper] = useState(false);
 
   // AI Sentence Polishing & Drafting State (5 Styles)
   type AiStyle = 'reporter' | 'factual' | 'scholarly' | 'concise' | 'natural';
@@ -1420,66 +1428,416 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: Paper Layout Editing (지면 편집) */}
+          {/* TAB 3: Paper Layout Editing (지면 편집국 - 1면~4면 직접 지정 및 조판 스튜디오) */}
           {activeTab === 'paper_layout' && isEditorInChief && (
             <div className="space-y-4">
-              <div className="pb-2 border-b border-[#e2ded6]">
-                <h3 className="font-serif-kr text-base font-bold text-slate-900">
-                  신문 지면 편집국 (1면~4면 지면 배정)
-                </h3>
-                <p className="text-xs text-slate-500 font-sans">
-                  각 기사의 지면 번호(1면 종합, 2면 문화예술, 3면 전통유산, 4면 K-컬처)를 실시간으로 재배치합니다.
-                </p>
+              {/* Header & Global Action Toolbar */}
+              <div className="p-4 bg-white rounded-xl border border-[#d8d3cb] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 bg-[#1b2a47] text-white rounded-lg">
+                      <Newspaper className="w-4 h-4" />
+                    </span>
+                    <h3 className="font-serif-kr text-base font-bold text-slate-900">
+                      신문 지면 조판 데스크 (1면·2면·3면·4면 직접 지정)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 font-sans mt-1">
+                    관리자가 1면(종합), 2면(문화예술), 3면(전통유산), 4면(K-컬처)에 들어갈 기사를 직접 검색하고 배치합니다.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Smart Auto Assign Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const published = articles.filter(a => !a.status || a.status === 'PUBLISHED');
+                      if (published.length === 0) {
+                        alert('발행된 기사가 없습니다.');
+                        return;
+                      }
+                      // Sort by date desc
+                      const sorted = [...published].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+                      
+                      const updated = articles.map(art => {
+                        // Reset first
+                        let pNum: number | undefined = undefined;
+                        let sPage: string | undefined = undefined;
+                        let isTop = false;
+
+                        // 1 page lead
+                        if (sorted[0] && art.id === sorted[0].id) {
+                          pNum = 1; sPage = '1면 (종합)'; isTop = true;
+                        } else if (sorted[1] && art.id === sorted[1].id) {
+                          pNum = 1; sPage = '1면 (종합)';
+                        } else if (sorted[2] && art.id === sorted[2].id) {
+                          pNum = 1; sPage = '1면 (종합)';
+                        }
+                        // 2 page (culture/art)
+                        const cArts = sorted.filter(a => a.category === 'culture_art' || a.category === 'art_exhibition' || a.category === 'performance');
+                        if (cArts[0] && art.id === cArts[0].id && !pNum) { pNum = 2; sPage = '2면 (문화·예술)'; }
+                        if (cArts[1] && art.id === cArts[1].id && !pNum) { pNum = 2; sPage = '2면 (문화·예술)'; }
+                        
+                        // 3 page (heritage)
+                        const hArts = sorted.filter(a => a.category === 'heritage' || a.category === 'academic' || a.category === 'history');
+                        if (hArts[0] && art.id === hArts[0].id && !pNum) { pNum = 3; sPage = '3면 (전통·유산)'; }
+                        if (hArts[1] && art.id === hArts[1].id && !pNum) { pNum = 3; sPage = '3면 (전통·유산)'; }
+                        
+                        // 4 page (k_culture/opinion)
+                        const kArts = sorted.filter(a => a.category === 'k_culture' || a.category === 'opinion' || a.category === 'people');
+                        if (kArts[0] && art.id === kArts[0].id && !pNum) { pNum = 4; sPage = '4면 (K-컬처·라이프)'; }
+                        if (kArts[1] && art.id === kArts[1].id && !pNum) { pNum = 4; sPage = '4면 (K-컬처·라이프)'; }
+
+                        return {
+                          ...art,
+                          pageNumber: pNum,
+                          sectionPage: sPage,
+                          isTopHeadline: isTop,
+                        };
+                      });
+
+                      onUpdateArticles(updated);
+                      saveArticlesBatchToFirestore(updated).catch(() => {});
+                      setPaperSaveMessage('최신 대표 기사들로 1~4면 지면이 스마트 자동 배정되었습니다!');
+                      setTimeout(() => setPaperSaveMessage(null), 3500);
+                    }}
+                    className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>추천 기사로 자동 편성</span>
+                  </button>
+
+                  {/* Save to Firestore Button */}
+                  <button
+                    type="button"
+                    disabled={isSavingPaper}
+                    onClick={async () => {
+                      setIsSavingPaper(true);
+                      try {
+                        await saveArticlesBatchToFirestore(articles);
+                        setPaperSaveMessage('1~4면 지면 배정 설정이 Firestore에 성공적으로 영구 저장되었습니다!');
+                        setTimeout(() => setPaperSaveMessage(null), 3500);
+                      } catch (e) {
+                        setPaperSaveMessage('지면 설정이 로컬에 저장되었습니다.');
+                        setTimeout(() => setPaperSaveMessage(null), 3500);
+                      } finally {
+                        setIsSavingPaper(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-[#1b2a47] hover:bg-[#25375c] text-white rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 shadow-xs transition-colors"
+                  >
+                    <Save className="w-3.5 h-3.5 text-amber-300" />
+                    <span>{isSavingPaper ? '저장 중...' : '지면 배치 일괄 저장 & 발행'}</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-sans">
-                {[1, 2, 3, 4].map((pageNum) => {
-                  const pageArticles = articles.filter(a => (a.pageNumber || 1) === pageNum);
-                  const pageNames = ['1면: 종합 톱·헤드라인', '2면: 문화·예술 기획', '3면: 전통·유산·헤리티지', '4면: K-컬처·라이프'];
+              {/* Feedback banner */}
+              {paperSaveMessage && (
+                <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{paperSaveMessage}</span>
+                </div>
+              )}
 
-                  return (
-                    <div key={pageNum} className="bg-[#f8f6f2] rounded-xl border border-[#d8d3cb] p-3 flex flex-col">
-                      <div className="flex items-center justify-between border-b border-[#ded8cf] pb-2 mb-2 font-serif-kr">
-                        <span className="font-bold text-slate-900">{pageNames[pageNum - 1]}</span>
-                        <span className="text-[10px] bg-slate-200 px-1.5 py-0.2 rounded font-mono">{pageArticles.length}건</span>
-                      </div>
+              {/* 2-Column Workspace */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left Column: Article Search & Pool (5 cols) */}
+                <div className="lg:col-span-5 bg-white rounded-xl border border-[#d8d3cb] p-4 flex flex-col space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                    <span className="font-serif-kr font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-[#1b2a47]" />
+                      <span>전체 기사 보관함 (지면에 넣을 기사 선택)</span>
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      총 {articles.filter(a => !a.status || a.status === 'PUBLISHED').length}건 발행
+                    </span>
+                  </div>
 
-                      <div className="space-y-2 flex-1 overflow-y-auto max-h-96">
-                        {pageArticles.map(art => (
-                          <div key={art.id} className="p-2.5 bg-white rounded-lg border border-[#e2ded6] shadow-2xs">
-                            {art.isTopHeadline && (
-                              <span className="px-1.5 py-0.2 bg-rose-600 text-white rounded text-[9px] font-bold mr-1">
-                                1면 톱
+                  {/* Search & Category filter */}
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={paperSearchTerm}
+                      onChange={(e) => setPaperSearchTerm(e.target.value)}
+                      placeholder="기사 제목 또는 기자 이름 검색..."
+                      className="w-full p-2 bg-[#f8f6f2] border border-[#d8d3cb] rounded-lg text-xs text-slate-900 focus:outline-none focus:border-[#1b2a47]"
+                    />
+
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px]">
+                      {[
+                        { id: 'all', label: '전체' },
+                        { id: 'culture_art', label: '문화예술' },
+                        { id: 'heritage', label: '전통유산' },
+                        { id: 'k_culture', label: 'K-컬처' },
+                        { id: 'opinion', label: '사설·칼럼' },
+                      ].map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setPaperSearchCategory(cat.id)}
+                          className={`px-2 py-1 rounded font-bold whitespace-nowrap transition-colors ${
+                            paperSearchCategory === cat.id
+                              ? 'bg-[#1b2a47] text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Filtered Articles List */}
+                  <div className="space-y-2 flex-1 overflow-y-auto max-h-[520px] pr-1">
+                    {articles
+                      .filter(a => !a.status || a.status === 'PUBLISHED')
+                      .filter(a => {
+                        const matchCat = paperSearchCategory === 'all' || a.category === paperSearchCategory;
+                        const matchSearch = !paperSearchTerm || 
+                          a.title.toLowerCase().includes(paperSearchTerm.toLowerCase()) ||
+                          (a.reporter?.name && a.reporter.name.toLowerCase().includes(paperSearchTerm.toLowerCase()));
+                        return matchCat && matchSearch;
+                      })
+                      .slice(0, 50)
+                      .map(art => {
+                        const isAssigned = typeof art.pageNumber === 'number' && art.pageNumber >= 1 && art.pageNumber <= 4;
+                        return (
+                          <div
+                            key={art.id}
+                            className={`p-3 rounded-lg border text-xs transition-all ${
+                              isAssigned 
+                                ? 'bg-amber-50/40 border-amber-300 shadow-2xs' 
+                                : 'bg-[#fcfbf9] border-[#e8e4dc] hover:border-slate-400'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="text-[10px] text-slate-500 font-serif-kr">
+                                [{art.categoryLabel || art.category}] {art.reporter?.name || '편집국'}
                               </span>
-                            )}
-                            <h5 className="font-serif-kr font-bold text-slate-900 line-clamp-2 text-xs">
+                              {isAssigned && (
+                                <span className="px-1.5 py-0.5 bg-[#1b2a47] text-white rounded text-[10px] font-bold">
+                                  {art.pageNumber}면 배정됨 {art.isTopHeadline && '★톱'}
+                                </span>
+                              )}
+                            </div>
+
+                            <h5 className="font-serif-kr font-bold text-slate-900 line-clamp-2 leading-snug">
                               {art.title}
                             </h5>
-                            <p className="text-[10px] text-slate-400 mt-1">기자: {art.reporter.name}</p>
 
-                            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                              <span>면 변경:</span>
+                            {/* Quick Add to Page Buttons */}
+                            <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between gap-1">
+                              <span className="text-[10px] font-bold text-slate-600">지면 추가:</span>
+                              <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4].map(p => (
+                                  <button
+                                    key={p}
+                                    type="button"
+                                    onClick={() => {
+                                      const secName = p === 1 ? '1면 (종합)' : p === 2 ? '2면 (문화·예술)' : p === 3 ? '3면 (전통·유산)' : '4면 (K-컬처·라이프)';
+                                      const updated = articles.map(a => a.id === art.id ? { ...a, pageNumber: p, sectionPage: secName } : a);
+                                      onUpdateArticles(updated);
+                                      setSelectedPaperPage(p);
+                                      setPaperSaveMessage(`기사가 [${p}면]에 배정되었습니다. 상단 저장을 눌러 영구 보존하세요.`);
+                                    }}
+                                    className={`px-2 py-0.8 rounded text-[10px] font-bold border transition-colors ${
+                                      art.pageNumber === p
+                                        ? 'bg-[#1b2a47] text-white border-[#1b2a47]'
+                                        : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                                    }`}
+                                  >
+                                    +{p}면
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Right Column: 1면~4면 Tabbed BroadSheet Manager (7 cols) */}
+                <div className="lg:col-span-7 bg-[#f8f6f2] rounded-xl border border-[#d8d3cb] p-4 flex flex-col space-y-4">
+                  {/* Page Selector Tabs (1면, 2면, 3면, 4면) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { num: 1, name: '1면: 종합 톱·헤드라인', cat: '문화종합' },
+                      { num: 2, name: '2면: 문화·예술 기획', cat: '공연/전시' },
+                      { num: 3, name: '3면: 전통·유산·기획', cat: '국가유산/역사' },
+                      { num: 4, name: '4면: K-컬처·오피니언', cat: '라이프/사설' },
+                    ].map(tab => {
+                      const count = articles.filter(a => a.pageNumber === tab.num).length;
+                      const isSelected = selectedPaperPage === tab.num;
+                      return (
+                        <button
+                          key={tab.num}
+                          type="button"
+                          onClick={() => setSelectedPaperPage(tab.num)}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? 'bg-[#1b2a47] text-white border-[#1b2a47] shadow-sm'
+                              : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-serif-kr font-bold text-xs">
+                              제{tab.num}면
+                            </span>
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${
+                              isSelected ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {count}건 배정
+                            </span>
+                          </div>
+                          <p className={`text-[10px] mt-1 truncate ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>
+                            {tab.cat}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Selected Page Header & Description */}
+                  <div className="p-3 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <strong className="font-serif-kr text-slate-900 text-xs">
+                        {selectedPaperPage === 1 && '📰 제1면 (종합 1면 톱 헤드라인 및 주요 종합 뉴스)'}
+                        {selectedPaperPage === 2 && '🎭 제2면 (문화·예술·전시·공연 심층 기획 기사)'}
+                        {selectedPaperPage === 3 && '🏛️ 제3면 (전통문화·국가유산·헤리티지 심층 기사)'}
+                        {selectedPaperPage === 4 && '🌏 제4면 (K-컬처·글로벌 라이프·사설 및 오피니언)'}
+                      </strong>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        * 이 지면에 배정된 기사들은 지면보기(종이신문 뷰) 제{selectedPaperPage}면에 순서대로 실물 조판됩니다.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Articles Currently Assigned to this Page */}
+                  <div className="space-y-3 flex-1 overflow-y-auto max-h-[460px]">
+                    {(() => {
+                      const pageArticles = articles.filter(a => a.pageNumber === selectedPaperPage);
+
+                      if (pageArticles.length === 0) {
+                        return (
+                          <div className="p-10 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2">
+                            <p className="text-sm font-bold text-slate-700 font-serif-kr">
+                              제{selectedPaperPage}면에 배정된 기사가 없습니다.
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              좌측 기사 보관함에서 <span className="font-bold text-[#1b2a47]">[+{selectedPaperPage}면]</span> 버튼을 눌러 원하는 기사를 추가해주세요.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return pageArticles.map((art, idx) => (
+                        <div
+                          key={art.id}
+                          className="p-3.5 bg-white rounded-xl border border-[#d8d3cb] shadow-xs space-y-2.5"
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-300 text-slate-700 font-mono text-[10px] font-bold flex items-center justify-center">
+                                #{idx + 1}
+                              </span>
+                              {art.isTopHeadline && (
+                                <span className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-bold font-serif-kr flex items-center gap-1">
+                                  <Flame className="w-3 h-3" />
+                                  <span>지면 톱(리드) 기사</span>
+                                </span>
+                              )}
+                              <span className="text-[11px] text-slate-500 font-serif-kr">
+                                [{art.categoryLabel || art.category}] {art.reporter?.name || '편집국'}
+                              </span>
+                            </div>
+
+                            {/* Top Lead Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextTop = !art.isTopHeadline;
+                                const updated = articles.map(a => {
+                                  if (a.id === art.id) return { ...a, isTopHeadline: nextTop };
+                                  if (nextTop && a.pageNumber === selectedPaperPage) {
+                                    // Make sure only one lead per page
+                                    return { ...a, isTopHeadline: false };
+                                  }
+                                  return a;
+                                });
+                                onUpdateArticles(updated);
+                              }}
+                              className={`px-2.5 py-1 rounded text-[10px] font-bold border transition-colors ${
+                                art.isTopHeadline
+                                  ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-300'
+                              }`}
+                            >
+                              {art.isTopHeadline ? '👑 톱기사 해제' : '👑 지면 톱(리드)으로 지정'}
+                            </button>
+                          </div>
+
+                          <div className="flex items-start gap-3">
+                            {art.imageUrl && (
+                              <img
+                                src={art.imageUrl}
+                                alt={art.title}
+                                className="w-16 h-12 object-cover rounded border border-slate-200 shrink-0"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h5 className="font-serif-kr font-bold text-slate-900 text-xs leading-snug line-clamp-2">
+                                {art.title}
+                              </h5>
+                              {art.subtitle && (
+                                <p className="text-[11px] text-slate-500 font-serif-kr truncate mt-0.5">
+                                  {art.subtitle}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Actions: Change Page / Remove */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-slate-500 font-bold">다른 면으로 이동:</span>
                               <select
-                                value={art.pageNumber || 1}
+                                value={art.pageNumber}
                                 onChange={(e) => {
                                   const targetP = Number(e.target.value);
                                   const secName = targetP === 1 ? '1면 (종합)' : targetP === 2 ? '2면 (문화·예술)' : targetP === 3 ? '3면 (전통·유산)' : '4면 (K-컬처·라이프)';
-                                  onUpdateArticles(articles.map(a => a.id === art.id ? { ...a, pageNumber: targetP, sectionPage: secName } : a));
+                                  const updated = articles.map(a => a.id === art.id ? { ...a, pageNumber: targetP, sectionPage: secName } : a);
+                                  onUpdateArticles(updated);
                                 }}
-                                className="bg-[#f5f1eb] border border-[#d8d3cb] rounded px-1 py-0.5"
+                                className="p-1 bg-[#f5f1eb] border border-[#d8d3cb] rounded text-[11px] font-bold text-slate-800"
                               >
-                                <option value={1}>1면</option>
-                                <option value={2}>2면</option>
-                                <option value={3}>3면</option>
-                                <option value={4}>4면</option>
+                                <option value={1}>1면 (종합)</option>
+                                <option value={2}>2면 (문화·예술)</option>
+                                <option value={3}>3면 (전통·유산)</option>
+                                <option value={4}>4면 (K-컬처)</option>
                               </select>
                             </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = articles.map(a => a.id === art.id ? { ...a, pageNumber: undefined, sectionPage: undefined, isTopHeadline: false } : a);
+                                onUpdateArticles(updated);
+                                setPaperSaveMessage(`기사가 제${selectedPaperPage}면에서 제외되었습니다.`);
+                              }}
+                              className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[10px] font-bold flex items-center gap-1 transition-colors"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>지면에서 제외</span>
+                            </button>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
               </div>
             </div>
           )}

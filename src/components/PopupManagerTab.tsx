@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PopupConfig, DualPopupsConfig, PopupPosition, PopupScopeTarget } from '../types';
 import { 
   Layers, 
@@ -16,6 +16,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { DEFAULT_POPUP_CONFIG_1, DEFAULT_POPUP_CONFIG_2 } from '../utils/storage';
+import { saveDualPopupsConfigToFirestore } from '../firebase';
 
 interface PopupManagerTabProps {
   dualPopupsConfig?: DualPopupsConfig;
@@ -57,6 +58,16 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
     };
   });
 
+  // Keep form in sync if external props update
+  useEffect(() => {
+    if (dualPopupsConfig) {
+      setForm({
+        popup1: { ...DEFAULT_POPUP_CONFIG_1, ...(dualPopupsConfig.popup1 || {}) },
+        popup2: { ...DEFAULT_POPUP_CONFIG_2, ...(dualPopupsConfig.popup2 || {}) },
+      });
+    }
+  }, [dualPopupsConfig]);
+
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const activeForm = form[selectedPopupIndex];
@@ -77,6 +88,13 @@ export const PopupManagerTab: React.FC<PopupManagerTabProps> = ({
       onUpdateDualPopupsConfig(form);
     } else if (onUpdatePopupConfig) {
       onUpdatePopupConfig(form.popup1);
+    }
+
+    // Save directly to Firestore for multi-device sync
+    try {
+      await saveDualPopupsConfigToFirestore(form);
+    } catch (e) {
+      console.warn('Firestore popup save error:', e);
     }
 
     try {

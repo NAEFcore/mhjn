@@ -54,29 +54,43 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
     const publishedArticles = articles.filter(a => !a.status || a.status === 'PUBLISHED');
 
     const PAGE_DEFS = [
-      { pageNumber: 1, sectionName: '종합 1면 (헤드라인)', defaultCat: 'culture_art' },
-      { pageNumber: 2, sectionName: '2면 (문화·예술 심층)', defaultCat: 'culture_art' },
-      { pageNumber: 3, sectionName: '3면 (전통·유산·기획)', defaultCat: 'heritage' },
-      { pageNumber: 4, sectionName: '4면 (K-컬처·오피니언)', defaultCat: 'k_culture' },
+      { pageNumber: 1, sectionName: '종합 1면 (헤드라인)', categories: ['culture_art', 'heritage', 'k_culture'] },
+      { pageNumber: 2, sectionName: '2면 (문화·예술 심층)', categories: ['culture_art', 'art_exhibition', 'performance'] },
+      { pageNumber: 3, sectionName: '3면 (전통·유산·기획)', categories: ['heritage', 'academic', 'history'] },
+      { pageNumber: 4, sectionName: '4면 (K-컬처·오피니언)', categories: ['k_culture', 'opinion', 'people', 'global'] },
     ];
 
     return PAGE_DEFS.map((def, idx) => {
       // 1. Find articles explicitly assigned to this pageNumber by admin
-      const assigned = publishedArticles.filter(a => (a.pageNumber || (a.isTopHeadline ? 1 : 2)) === def.pageNumber);
+      const explicitlyAssigned = publishedArticles.filter(a => a.pageNumber === def.pageNumber);
       
-      // 2. If fewer than 2 articles, fallback or supplement from published articles pool
-      let pageArticles = [...assigned];
-      if (pageArticles.length === 0) {
-        if (PAPER_PAGES[idx]?.articles && PAPER_PAGES[idx].articles.length > 0) {
-          pageArticles = PAPER_PAGES[idx].articles;
+      let pageArticles: Article[] = [];
+
+      if (explicitlyAssigned.length > 0) {
+        // Limit to top 6 articles to prevent overwhelming the broadsheet newspaper layout
+        pageArticles = explicitlyAssigned.slice(0, 6);
+      } else {
+        // Fallback: Smart selection from live Firestore published articles matching the section category
+        if (def.pageNumber === 1) {
+          const topHeadlines = publishedArticles.filter(a => a.isTopHeadline);
+          pageArticles = topHeadlines.length > 0 ? topHeadlines.slice(0, 4) : publishedArticles.slice(0, 4);
         } else {
-          pageArticles = publishedArticles.filter(a => a.category === def.defaultCat).slice(0, 3);
+          const categoryMatches = publishedArticles.filter(a => def.categories.includes(a.category as any));
+          pageArticles = categoryMatches.length > 0 
+            ? categoryMatches.slice(0, 3) 
+            : publishedArticles.slice(idx * 3, idx * 3 + 3);
+        }
+
+        // Final fallback to mock paper pages only if no articles exist
+        if (pageArticles.length === 0 && PAPER_PAGES[idx]?.articles && PAPER_PAGES[idx].articles.length > 0) {
+          pageArticles = PAPER_PAGES[idx].articles;
         }
       }
 
-      // Ensure top article is lead
+      // Ensure top headline is first
       const topArt = pageArticles.find(a => a.isTopHeadline) || pageArticles[0];
-      const otherArts = pageArticles.filter(a => a.id !== topArt?.id);
+      const otherArts = pageArticles.filter(a => a?.id !== topArt?.id);
+      const orderedArts = topArt ? [topArt, ...otherArts] : pageArticles;
 
       return {
         pageNumber: def.pageNumber,
@@ -86,7 +100,7 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
         date: todayFormatted,
         topArticle: topArt,
         subArticles: otherArts,
-        articles: pageArticles,
+        articles: orderedArts,
       };
     });
   }, [articles, todayFormatted]);
@@ -265,74 +279,158 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
         </div>
 
         {/* Paper Articles Layout (Lead Article & Sub Articles) */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 divide-y md:divide-y-0 md:divide-x divide-gray-300">
-          {currentPage.articles.map((art, index) => {
-            const isLead = index === 0;
-            const colSpan = isLead ? 'md:col-span-7' : 'md:col-span-5 md:pl-8';
+        {currentPage.articles.length === 0 ? (
+          <div className="py-16 text-center text-gray-500 font-serif-kr">
+            <p className="text-base font-bold">배정된 지면 기사가 없습니다.</p>
+            <p className="text-xs text-gray-400 mt-1">관리자 데스크의 [지면 편집] 탭에서 기사를 배정해주세요.</p>
+          </div>
+        ) : currentPage.articles.length === 1 ? (
+          <article
+            onClick={() => onSelectArticle(currentPage.articles[0])}
+            className="cursor-pointer group pt-2"
+          >
+            {/* Section tag / Kicker */}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-red-800 border-b border-red-800 pb-0.5 font-serif-kr">
+                [{currentPage.articles[0].subCategory || currentPage.articles[0].categoryLabel || '문화종합'}] {currentPage.articles[0].badge && `· ${currentPage.articles[0].badge}`}
+              </span>
+              <span className="text-[11px] text-gray-500 font-serif-kr">
+                {currentPage.articles[0].reporter?.name || '편집국'} 기자
+              </span>
+            </div>
 
-            return (
-              <article
-                key={art.id}
-                onClick={() => onSelectArticle(art)}
-                className={`${colSpan} cursor-pointer group pt-6 md:pt-0`}
-              >
-                {/* Section tag / Kicker */}
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-red-800 border-b border-red-800 pb-0.5 font-serif-kr">
-                    [{art.subCategory || art.categoryLabel || '문화종합'}] {art.badge && `· ${art.badge}`}
-                  </span>
-                  <span className="text-[11px] text-gray-500 font-serif-kr">
-                    {art.reporter?.name || '편집국'} 기자
-                  </span>
+            <h3 className="font-serif-kr font-black text-gray-950 group-hover:text-[#004b93] text-3xl sm:text-4xl leading-tight tracking-tight mb-3 transition-colors">
+              {currentPage.articles[0].title}
+            </h3>
+
+            {currentPage.articles[0].subtitle && (
+              <div className="border-l-2 border-gray-900 pl-3 py-1 mb-4 text-sm font-serif-kr text-gray-700 leading-relaxed font-semibold">
+                {currentPage.articles[0].subtitle}
+              </div>
+            )}
+
+            {currentPage.articles[0].imageUrl && (
+              <div className="relative aspect-[16/9] bg-gray-200 border border-gray-400 mb-4 overflow-hidden">
+                <img
+                  src={currentPage.articles[0].imageUrl}
+                  alt={currentPage.articles[0].title}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300 filter contrast-105"
+                />
+              </div>
+            )}
+
+            <div className="text-sm font-serif-kr text-gray-800 leading-relaxed columns-1 md:columns-2 gap-8">
+              <p className="first-letter:text-3xl first-letter:font-bold first-letter:float-left first-letter:mr-2">
+                {(currentPage.articles[0].summary || currentPage.articles[0].content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 700)}...
+              </p>
+            </div>
+
+            <div className="mt-6 pt-2 border-t border-dotted border-gray-300 flex items-center justify-between text-xs text-[#004b93] font-bold">
+              <span>[기사 전문 읽기 / 디지털 인터랙티브 뷰]</span>
+              <span>{currentPage.articles[0].publishedAt}</span>
+            </div>
+          </article>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 divide-y md:divide-y-0 md:divide-x divide-gray-300">
+            {/* Left 7 Cols: Lead Article */}
+            <article
+              onClick={() => onSelectArticle(currentPage.articles[0])}
+              className="md:col-span-7 cursor-pointer group pt-6 md:pt-0"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-red-800 border-b border-red-800 pb-0.5 font-serif-kr">
+                  [{currentPage.articles[0].subCategory || currentPage.articles[0].categoryLabel || '문화종합'}] {currentPage.articles[0].badge && `· ${currentPage.articles[0].badge}`}
+                </span>
+                <span className="text-[11px] text-gray-500 font-serif-kr">
+                  {currentPage.articles[0].reporter?.name || '편집국'} 기자
+                </span>
+              </div>
+
+              <h3 className="font-serif-kr font-black text-gray-950 group-hover:text-[#004b93] text-2xl sm:text-3xl leading-tight tracking-tight mb-3 transition-colors">
+                {currentPage.articles[0].title}
+              </h3>
+
+              {currentPage.articles[0].subtitle && (
+                <div className="border-l-2 border-gray-900 pl-3 py-0.5 mb-4 text-xs font-serif-kr text-gray-700 leading-relaxed font-semibold">
+                  {currentPage.articles[0].subtitle}
                 </div>
+              )}
 
-                {/* Main Headline */}
-                <h3 className={`font-serif-kr font-black text-gray-950 group-hover:text-[#004b93] leading-tight tracking-tight mb-3 transition-colors ${
-                  isLead ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'
-                }`}>
-                  {art.title}
-                </h3>
+              {currentPage.articles[0].imageUrl && (
+                <div className="relative aspect-[16/10] bg-gray-200 border border-gray-400 mb-3 overflow-hidden">
+                  <img
+                    src={currentPage.articles[0].imageUrl}
+                    alt={currentPage.articles[0].title}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300 filter contrast-105"
+                  />
+                </div>
+              )}
 
-                {/* Subtitle Box */}
-                {art.subtitle && (
-                  <div className="border-l-2 border-gray-900 pl-3 py-0.5 mb-4 text-xs font-serif-kr text-gray-700 leading-relaxed font-semibold">
-                    {art.subtitle}
+              {currentPage.articles[0].imageCaption && (
+                <p className="text-[10px] text-gray-500 font-serif-kr italic mb-3">
+                  {currentPage.articles[0].imageCaption}
+                </p>
+              )}
+
+              <div className="text-xs font-serif-kr text-gray-800 leading-relaxed space-y-2">
+                <p className="first-letter:text-2xl first-letter:font-bold first-letter:float-left first-letter:mr-1">
+                  {(currentPage.articles[0].summary || currentPage.articles[0].content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 380)}...
+                </p>
+              </div>
+
+              <div className="mt-4 pt-2 border-t border-dotted border-gray-300 flex items-center justify-between text-[11px] text-[#004b93] font-bold">
+                <span>[전문 읽기 / 인터랙티브 뷰]</span>
+                <span>{currentPage.articles[0].publishedAt}</span>
+              </div>
+            </article>
+
+            {/* Right 5 Cols: Sub Articles */}
+            <div className="md:col-span-5 md:pl-8 space-y-6 divide-y divide-gray-300 pt-6 md:pt-0">
+              {currentPage.articles.slice(1).map((art, index) => (
+                <article
+                  key={art.id}
+                  onClick={() => onSelectArticle(art)}
+                  className={`cursor-pointer group ${index > 0 ? 'pt-6' : ''}`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-red-800 font-serif-kr">
+                      [{art.subCategory || art.categoryLabel || '문화'}] {art.badge && `· ${art.badge}`}
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-serif-kr">
+                      {art.reporter?.name || '편집국'}
+                    </span>
                   </div>
-                )}
 
-                {/* Photo in Print */}
-                {art.imageUrl && (
-                  <div className="relative aspect-[16/10] bg-gray-200 border border-gray-400 mb-3 overflow-hidden">
-                    <img
-                      src={art.imageUrl}
-                      alt={art.title}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300 filter contrast-105"
-                    />
+                  <h4 className="font-serif-kr font-black text-gray-950 group-hover:text-[#004b93] text-lg sm:text-xl leading-snug tracking-tight mb-2 transition-colors">
+                    {art.title}
+                  </h4>
+
+                  {art.imageUrl && (
+                    <div className="relative aspect-[16/9] bg-gray-200 border border-gray-300 mb-2 overflow-hidden">
+                      <img
+                        src={art.imageUrl}
+                        alt={art.title}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+                      />
+                    </div>
+                  )}
+
+                  <p className="text-[11px] font-serif-kr text-gray-700 leading-relaxed line-clamp-3 mb-2">
+                    {(art.summary || art.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 160)}
+                  </p>
+
+                  <div className="text-[10px] text-gray-400 font-serif-kr flex items-center justify-between">
+                    <span className="text-[#004b93] font-bold">[전문보기]</span>
+                    <span>{art.publishedAt?.slice(0, 10)}</span>
                   </div>
-                )}
-                {art.imageCaption && (
-                  <p className="text-[10px] text-gray-500 font-serif-kr italic mb-3">
-                    {art.imageCaption}
-                  </p>
-                )}
-
-                {/* Lead Text columns */}
-                <div className="text-xs font-serif-kr text-gray-800 leading-relaxed space-y-2">
-                  <p className="first-letter:text-2xl first-letter:font-bold first-letter:float-left first-letter:mr-1">
-                    {(art.summary || art.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 380)}...
-                  </p>
-                </div>
-
-                {/* Read Full Article Button */}
-                <div className="mt-4 pt-2 border-t border-dotted border-gray-300 flex items-center justify-between text-[11px] text-[#004b93] font-bold">
-                  <span>[전문 읽기 / 인터랙티브 뷰]</span>
-                  <span>{art.publishedAt}</span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Paper Footer Stamp */}
         <div className="border-t-2 border-gray-900 mt-10 pt-3 flex flex-wrap items-center justify-between text-[10px] text-gray-500 font-serif-kr gap-2">

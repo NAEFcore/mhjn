@@ -33,7 +33,9 @@ import {
   subscribeToFirestoreArticles, 
   seedInitialArticlesIfEmpty,
   saveArticlesBatchToFirestore,
-  deleteArticleFromFirestore
+  deleteArticleFromFirestore,
+  saveDualPopupsConfigToFirestore,
+  fetchDualPopupsConfigFromFirestore
 } from './firebase';
 
 export type ViewMode = 'standard' | 'amp_mobile' | 'sub_news' | 'kcj_radio';
@@ -63,6 +65,9 @@ export default function App() {
   const setDualPopupsConfig = (newConfig: DualPopupsConfig) => {
     setDualPopupsConfigState(newConfig);
     savePersistedDualPopupsConfig(newConfig);
+    saveDualPopupsConfigToFirestore(newConfig).catch(err => {
+      console.warn('Dual popups Firestore sync error:', err);
+    });
   };
 
   // Firestore Realtime Subscription & Auto-Seeding
@@ -71,6 +76,18 @@ export default function App() {
 
     const initFirestore = async () => {
       try {
+        // 0. Fetch latest popups config from Firestore if available
+        fetchDualPopupsConfigFromFirestore().then(popupsData => {
+          if (popupsData && (popupsData.popup1 || popupsData.popup2)) {
+            const merged = {
+              popup1: { ...loadPersistedDualPopupsConfig().popup1, ...(popupsData.popup1 || {}) },
+              popup2: { ...loadPersistedDualPopupsConfig().popup2, ...(popupsData.popup2 || {}) },
+            };
+            setDualPopupsConfigState(merged);
+            savePersistedDualPopupsConfig(merged);
+          }
+        }).catch(() => {});
+
         // 1. Check & Seed initial articles ONLY if Firestore is completely empty
         const initial = await seedInitialArticlesIfEmpty();
         if (initial && initial.length > 0) {

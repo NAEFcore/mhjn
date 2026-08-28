@@ -471,3 +471,31 @@ export async function deleteWordPressImportedArticlesFromFirestore(
   }
 }
 
+/**
+ * Save Dual Popups Config to Firestore
+ */
+export async function saveDualPopupsConfigToFirestore(config: any): Promise<void> {
+  try {
+    const docRef = doc(db, 'system_settings', 'dual_popups');
+    await setDoc(docRef, { ...config, updatedAt: new Date().toISOString() }, { merge: true });
+  } catch (err) {
+    console.warn('Failed to save dual popups to Firestore:', err);
+  }
+}
+
+/**
+ * Fetch Dual Popups Config from Firestore
+ */
+export async function fetchDualPopupsConfigFromFirestore(): Promise<any | null> {
+  try {
+    const docRef = doc(db, 'system_settings', 'dual_popups');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } catch (err) {
+    console.warn('Failed to fetch dual popups from Firestore:', err);
+  }
+  return null;
+}
+
