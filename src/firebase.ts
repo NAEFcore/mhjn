@@ -495,9 +495,24 @@ export function subscribeToFirestoreArticles(
       const dateB = parseDateSafely(b.publishedAt);
       return dateB - dateA;
     });
+
+    console.log('[FIRESTORE]', {
+      success: true,
+      count: sorted.length,
+      firstTitle: sorted[0]?.title,
+      firstId: sorted[0]?.id,
+      firstPublishedAt: sorted[0]?.publishedAt,
+    });
+
     onUpdate(sorted);
   }, async (err) => {
-    console.warn('Firestore snapshot listener notice (using server fallback):', err?.message || err);
+    console.warn('[FIRESTORE] Error/QuotaNotice:', err?.message || err);
+    console.log('[FIRESTORE]', {
+      success: false,
+      errorType: err?.name || 'FirestoreError',
+      errorMessage: err?.message || String(err),
+    });
+
     if (onError) onError(err);
     
     // Automatically fall back to backend server if Firestore listener hits quota limit
@@ -511,10 +526,21 @@ export function subscribeToFirestoreArticles(
             const dateB = parseDateSafely(b.publishedAt);
             return dateB - dateA;
           });
+
+          console.log('[SERVER FALLBACK]', {
+            executed: true,
+            count: serverSorted.length,
+            firstTitle: serverSorted[0]?.title,
+            firstId: serverSorted[0]?.id,
+            firstPublishedAt: serverSorted[0]?.publishedAt,
+          });
+
           onUpdate(serverSorted);
         }
       }
-    } catch {}
+    } catch (fetchErr) {
+      console.warn('[SERVER FALLBACK] Failed to fetch /api/articles:', fetchErr);
+    }
   });
 }
 

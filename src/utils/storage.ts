@@ -79,6 +79,14 @@ export function loadPersistedArticles(): Article[] {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log('[LOCAL CACHE]', {
+          exists: true,
+          count: parsed.length,
+          firstId: parsed[0]?.id,
+          firstTitle: parsed[0]?.title,
+          firstPublishedAt: parsed[0]?.publishedAt,
+        });
+        console.log('[INITIAL DATA]', { usingInitialArticles: false, source: 'localStorage_temp_cache' });
         return parsed;
       }
     }
@@ -86,6 +94,14 @@ export function loadPersistedArticles(): Article[] {
     console.warn('Failed to load articles cache from localStorage:', e);
   }
 
+  console.log('[LOCAL CACHE]', { exists: false, count: 0 });
+  console.log('[INITIAL DATA]', {
+    usingInitialArticles: true,
+    source: 'INITIAL_ARTICLES',
+    count: INITIAL_ARTICLES.length,
+    firstId: INITIAL_ARTICLES[0]?.id,
+    firstTitle: INITIAL_ARTICLES[0]?.title,
+  });
   return INITIAL_ARTICLES;
 }
 

@@ -88,10 +88,17 @@ export default function App() {
         }).catch(() => {});
 
         // 1. Subscribe to Firestore in realtime (with safe fallback to local cache / backend store)
-        unsubscribe = subscribeToFirestoreArticles((firestoreArticles) => {
-          if (firestoreArticles && firestoreArticles.length > 0) {
-            setArticlesState(firestoreArticles);
-            savePersistedArticles(firestoreArticles);
+        unsubscribe = subscribeToFirestoreArticles((incomingArticles) => {
+          if (incomingArticles && incomingArticles.length > 0) {
+            console.log('[FINAL APP STATE]', {
+              source: 'FIRESTORE_OR_SERVER_FALLBACK',
+              count: incomingArticles.length,
+              firstId: incomingArticles[0]?.id,
+              firstTitle: incomingArticles[0]?.title,
+              firstPublishedAt: incomingArticles[0]?.publishedAt,
+            });
+            setArticlesState(incomingArticles);
+            savePersistedArticles(incomingArticles);
           }
         }, (err) => {
           console.warn('Firestore subscription notice (using local cache & backend server fallback):', err?.message || err);
@@ -100,6 +107,13 @@ export default function App() {
             .then(res => res.json())
             .then(data => {
               if (Array.isArray(data.articles) && data.articles.length > 0) {
+                console.log('[FINAL APP STATE]', {
+                  source: 'DIRECT_API_FALLBACK',
+                  count: data.articles.length,
+                  firstId: data.articles[0]?.id,
+                  firstTitle: data.articles[0]?.title,
+                  firstPublishedAt: data.articles[0]?.publishedAt,
+                });
                 setArticlesState(data.articles);
                 savePersistedArticles(data.articles);
               }
