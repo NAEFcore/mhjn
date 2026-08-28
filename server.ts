@@ -696,12 +696,19 @@ app.delete('/api/articles/:id', (req, res) => {
   }
 });
 
-// API: Bulk Sync Articles
+// API: Bulk Sync Articles (Upsert merge into serverArticles without deleting unmentioned articles)
 app.post('/api/articles/sync', (req, res) => {
   try {
     const { articles } = req.body;
     if (Array.isArray(articles) && articles.length > 0) {
-      serverArticles = articles;
+      const articleMap = new Map<string, any>();
+      for (const a of serverArticles) {
+        if (a && a.id) articleMap.set(a.id, a);
+      }
+      for (const a of articles) {
+        if (a && a.id) articleMap.set(a.id, a);
+      }
+      serverArticles = Array.from(articleMap.values());
       writeJsonFile(ARTICLES_FILE, serverArticles);
     }
     res.json({ success: true, count: serverArticles.length });

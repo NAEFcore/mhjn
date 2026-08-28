@@ -329,20 +329,21 @@ export async function saveArticlesBatchToFirestore(
 
 /**
  * Seed initial articles if Firestore is completely empty on first launch
+ * Returns null if read fails, preventing accidental overwrites.
  */
-export async function seedInitialArticlesIfEmpty(): Promise<Article[]> {
+export async function seedInitialArticlesIfEmpty(): Promise<Article[] | null> {
   try {
     const existing = await fetchArticlesFromFirestore();
-    if (existing.length > 0) {
+    if (existing && existing.length > 0) {
       return existing;
     }
 
-    console.info('Firestore articles collection is empty. Seeding initial articles...');
+    console.info('Firestore articles collection is completely empty. Seeding initial articles...');
     await saveArticlesBatchToFirestore(INITIAL_ARTICLES);
     return INITIAL_ARTICLES;
   } catch (err) {
-    console.warn('Error during Firestore initial seed check:', err);
-    return INITIAL_ARTICLES;
+    console.warn('Firestore read error during seed check; skipping seed to prevent data loss:', err);
+    return null;
   }
 }
 

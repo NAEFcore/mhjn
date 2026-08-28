@@ -71,7 +71,7 @@ export default function App() {
 
     const initFirestore = async () => {
       try {
-        // 1. Check & Seed initial articles if empty in Firestore
+        // 1. Check & Seed initial articles ONLY if Firestore is completely empty
         const initial = await seedInitialArticlesIfEmpty();
         if (initial && initial.length > 0) {
           setArticlesState(initial);
@@ -117,21 +117,13 @@ export default function App() {
   // Authentication State (default logged out or persisted)
   const [currentUser, setCurrentUserState] = useState<AuthUser | null>(() => loadPersistedUser());
 
-  // Wrap state updates with persistence & Firestore sync
+  // Wrap state updates with persistence & Firestore sync (NEVER auto-delete missing articles)
   const setArticles = (newArticles: Article[] | ((prev: Article[]) => Article[])) => {
     setArticlesState((prev) => {
       const next = typeof newArticles === 'function' ? newArticles(prev) : newArticles;
       savePersistedArticles(next);
 
-      // Detect deletions if any
-      const nextIds = new Set(next.map(a => a.id));
-      prev.forEach(p => {
-        if (!nextIds.has(p.id)) {
-          deleteArticleFromFirestore(p.id).catch(() => {});
-        }
-      });
-
-      // Batch save new/updated to Firestore
+      // Save/merge articles to Firestore
       saveArticlesBatchToFirestore(next).catch(err => {
         console.error('Failed to sync batch to Firestore:', err);
       });

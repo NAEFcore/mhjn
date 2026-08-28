@@ -424,10 +424,11 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
 
     if (editingArticle) {
       // Update existing
+      let updatedTargetArticle: Article | null = null;
       const updated = articles.map(art => {
         if (art.id === editingArticle.id) {
           const canonical = formMainNewsEnabled ? `https://kculturejournal.com/article/${art.id}` : `https://kculturejournal.com/sub-news/article/${art.id}`;
-          return {
+          const modified: Article = {
             ...art,
             title: formTitle,
             subtitle: formSubtitle,
@@ -452,9 +453,16 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
             status: targetStatus,
             updatedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
           };
+          updatedTargetArticle = modified;
+          return modified;
         }
         return art;
       });
+      if (updatedTargetArticle) {
+        saveArticleToFirestore(updatedTargetArticle).catch(err => {
+          console.error('Failed to save updated article to Firestore:', err);
+        });
+      }
       onUpdateArticles(updated);
       alert('기사가 성공적으로 수정되었습니다.');
     } else {
@@ -495,6 +503,10 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
         commentsCount: 0,
       };
 
+      saveArticleToFirestore(newArticle).catch(err => {
+        console.error('Failed to save new article to Firestore:', err);
+      });
+
       let newArticlesList = [newArticle, ...articles];
       if (formIsTop && isEditorInChief) {
         newArticlesList = newArticlesList.map(a => a.id === newArticle.id ? a : { ...a, isTopHeadline: false });
@@ -508,6 +520,11 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
 
   // Approve Article (Editor in chief only)
   const handleApproveArticle = (articleId: string) => {
+    const target = articles.find(art => art.id === articleId);
+    if (target) {
+      const approved = { ...target, status: 'PUBLISHED' as const, publishedAt: '방금 전' };
+      saveArticleToFirestore(approved).catch(console.error);
+    }
     const updated = articles.map(art => {
       if (art.id === articleId) {
         return { ...art, status: 'PUBLISHED' as const, publishedAt: '방금 전' };
@@ -523,6 +540,11 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
     const reason = prompt('반려 사유를 입력하세요 (기자에게 전달됩니다):', '사료 출처 재검증 필요 및 문장 교열 권고');
     if (reason === null) return;
 
+    const target = articles.find(art => art.id === articleId);
+    if (target) {
+      const rejected = { ...target, status: 'REJECTED' as const, rejectionReason: reason };
+      saveArticleToFirestore(rejected).catch(console.error);
+    }
     const updated = articles.map(art => {
       if (art.id === articleId) {
         return { ...art, status: 'REJECTED' as const, rejectionReason: reason };
@@ -533,9 +555,13 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
     alert('기사가 반려 처리되었습니다.');
   };
 
-  // Delete Article
+  // Delete Article (Explicit user deletion only)
   const handleDeleteArticle = (articleId: string) => {
     if (!window.confirm('정말 이 기사를 삭제하시겠습니까? (삭제 후 복구 불가)')) return;
+    deleteArticleFromFirestore(articleId).catch(err => {
+      console.error('Failed to delete from Firestore:', err);
+    });
+    fetch(`/api/articles/${articleId}`, { method: 'DELETE' }).catch(() => {});
     onUpdateArticles(articles.filter(a => a.id !== articleId));
   };
 
