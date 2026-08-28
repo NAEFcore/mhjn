@@ -130,6 +130,35 @@ export function articleToFirestoreDoc(article: Article): Record<string, any> {
 }
 
 /**
+ * Safely format Firestore timestamp/date value to clean string representation
+ */
+export function formatFirestoreDateToString(val: any): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') {
+    return new Date(val > 1e11 ? val : val * 1000).toISOString();
+  }
+  if (typeof val === 'object') {
+    if (typeof val.toDate === 'function') {
+      try { return val.toDate().toISOString(); } catch {}
+    }
+    if (typeof val.toMillis === 'function') {
+      try { return new Date(val.toMillis()).toISOString(); } catch {}
+    }
+    if (typeof val.seconds === 'number') {
+      return new Date(val.seconds * 1000).toISOString();
+    }
+    if (typeof val._seconds === 'number') {
+      return new Date(val._seconds * 1000).toISOString();
+    }
+    if (val instanceof Date) {
+      return val.toISOString();
+    }
+  }
+  return String(val);
+}
+
+/**
  * Converts Firestore document to internal Article object
  */
 export function firestoreDocToArticle(docData: any, docId: string): Article {
@@ -138,8 +167,10 @@ export function firestoreDocToArticle(docData: any, docId: string): Article {
   const koreanBody = docData.koreanBody || docData.content || '';
   const englishTitle = docData.englishTitle || docData.titleEn || undefined;
   const englishBody = docData.englishBody || docData.contentEn || undefined;
-  const createdAt = docData.createdAt || docData.publishedAt || new Date().toISOString();
-  const updatedAt = docData.updatedAt || createdAt;
+  const rawPublished = docData.publishedAt || docData.createdAt;
+  const createdAt = formatFirestoreDateToString(rawPublished);
+  const rawUpdated = docData.updatedAt || docData.publishedAt || docData.createdAt;
+  const updatedAt = formatFirestoreDateToString(rawUpdated);
   const status = docData.status || 'PUBLISHED';
   const category = (docData.category || 'culture_art') as CategoryId;
   const importSource = docData.importSource || (
@@ -207,24 +238,66 @@ export function firestoreDocToArticle(docData: any, docId: string): Article {
 }
 
 /**
- * Safe date parser to handle Korean date strings ('2026. 08. 28.'), ISO strings, and timestamps
+ * Safe date parser to handle Korean date strings ('2026. 08. 28.'), ISO strings, Firestore Timestamps, and numbers
  */
-export function parseDateSafely(dateStr?: string | null): number {
+export function parseDateSafely(dateVal?: any): number {
+  if (!dateVal) return 0;
+
+  // 1. Raw numeric timestamp
+  if (typeof dateVal === 'number') {
+    if (dateVal > 1e11) return dateVal;
+    if (dateVal > 0) return dateVal * 1000;
+    return 0;
+  }
+
+  // 2. Firestore Timestamp / Date objects
+  if (typeof dateVal === 'object') {
+    if (typeof dateVal.toMillis === 'function') {
+      try { return dateVal.toMillis(); } catch {}
+    }
+    if (typeof dateVal.toDate === 'function') {
+      try { return dateVal.toDate().getTime(); } catch {}
+    }
+    if (dateVal instanceof Date) {
+      return dateVal.getTime();
+    }
+    if (typeof dateVal.seconds === 'number') {
+      return dateVal.seconds * 1000 + (dateVal.nanoseconds ? Math.floor(dateVal.nanoseconds / 1e6) : 0);
+    }
+    if (typeof dateVal._seconds === 'number') {
+      return dateVal._seconds * 1000;
+    }
+  }
+
+  const dateStr = String(dateVal).trim();
   if (!dateStr) return 0;
-  // If direct ISO / RFC string parses cleanly
+
+  // 3. Relative terms ('방금 전', '오늘', etc.)
+  if (dateStr.includes('방금') || dateStr.includes('초 전') || dateStr.includes('분 전')) {
+    return Date.now();
+  }
+
+  // 4. Standard ISO/RFC parsing
   const direct = new Date(dateStr).getTime();
   if (!isNaN(direct) && direct > 0) return direct;
 
-  // Clean format: '2026. 08. 28. 오후 12:30' or '2026. 08. 28.'
-  const parts = String(dateStr).replace(/[^\d]/g, ' ').trim().split(/\s+/);
-  if (parts.length >= 3) {
-    const y = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10) - 1;
-    const d = parseInt(parts[2], 10);
-    const hh = parts[3] ? parseInt(parts[3], 10) : 0;
-    const mm = parts[4] ? parseInt(parts[4], 10) : 0;
-    const ss = parts[5] ? parseInt(parts[5], 10) : 0;
-    const ts = new Date(y, m, d, hh, mm, ss).getTime();
+  // 5. Clean format: '2026. 08. 28. 오후 12:30' or '2026. 08. 28.'
+  const isPM = dateStr.includes('오후') || dateStr.toLowerCase().includes('pm');
+  const isAM = dateStr.includes('오전') || dateStr.toLowerCase().includes('am');
+  const numbers = dateStr
+    .replace(/[^\d]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .map(n => parseInt(n, 10))
+    .filter(n => !isNaN(n));
+
+  if (numbers.length >= 3) {
+    let [y, m, d, hh = 0, mm = 0, ss = 0] = numbers;
+    if (y < 100) y += 2000;
+    if (isPM && hh < 12) hh += 12;
+    if (isAM && hh === 12) hh = 0;
+
+    const ts = new Date(y, m - 1, d, hh, mm, ss).getTime();
     if (!isNaN(ts) && ts > 0) return ts;
   }
   return 0;

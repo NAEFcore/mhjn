@@ -32,7 +32,6 @@ import {
   fetchArticlesFromFirestore, 
   subscribeToFirestoreArticles, 
   seedInitialArticlesIfEmpty,
-  saveArticlesBatchToFirestore,
   deleteArticleFromFirestore,
   saveDualPopupsConfigToFirestore,
   fetchDualPopupsConfigFromFirestore
@@ -88,37 +87,29 @@ export default function App() {
           }
         }).catch(() => {});
 
-        // 1. Check & Seed initial articles ONLY if Firestore is completely empty
-        const initial = await seedInitialArticlesIfEmpty();
-        if (initial && initial.length > 0) {
-          setArticlesState(initial);
-          savePersistedArticles(initial);
-        } else {
-          // Fallback: Check backend server articles
-          fetch('/api/articles')
-            .then(res => res.json())
-            .then(data => {
-              if (Array.isArray(data.articles) && data.articles.length > 0) {
-                setArticlesState((prev) => {
-                  if (!prev || prev.length <= 15) return data.articles;
-                  return prev;
-                });
-              }
-            })
-            .catch(() => {});
-        }
-
-        // 2. Realtime listener for cross-window & cross-device instant sync
+        // 1. Subscribe to Firestore in realtime (with safe fallback to local cache / backend store)
         unsubscribe = subscribeToFirestoreArticles((firestoreArticles) => {
           if (firestoreArticles && firestoreArticles.length > 0) {
             setArticlesState(firestoreArticles);
             savePersistedArticles(firestoreArticles);
           }
         }, (err) => {
-          console.warn('Firestore subscription notice (using local cache & backend server):', err?.message || err);
+          console.warn('Firestore subscription notice (using local cache & backend server fallback):', err?.message || err);
+          // If Firestore quota limit exceeded or offline, verify backend server fallback
+          fetch('/api/articles')
+            .then(res => res.json())
+            .then(data => {
+              if (Array.isArray(data.articles) && data.articles.length > 0) {
+                setArticlesState((prev) => {
+                  if (!prev || prev.length === 0) return data.articles;
+                  return prev;
+                });
+              }
+            })
+            .catch(() => {});
         });
       } catch (err) {
-        console.warn('Firestore initialization fallback:', err);
+        console.warn('Firestore initialization notice (using safe local cache):', err);
       }
     };
 
@@ -147,17 +138,11 @@ export default function App() {
   // Authentication State (default logged out or persisted)
   const [currentUser, setCurrentUserState] = useState<AuthUser | null>(() => loadPersistedUser());
 
-  // Wrap state updates with persistence & Firestore sync (NEVER auto-delete missing articles)
+  // Wrap state updates with persistence (Firestore write occurs only on explicit CMS/import actions)
   const setArticles = (newArticles: Article[] | ((prev: Article[]) => Article[])) => {
     setArticlesState((prev) => {
       const next = typeof newArticles === 'function' ? newArticles(prev) : newArticles;
       savePersistedArticles(next);
-
-      // Save/merge articles to Firestore
-      saveArticlesBatchToFirestore(next).catch(err => {
-        console.error('Failed to sync batch to Firestore:', err);
-      });
-
       return next;
     });
   };

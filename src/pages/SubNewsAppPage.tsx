@@ -27,6 +27,7 @@ import {
 import { Article, Reporter, AuthUser, SubNewsCategoryId, AdSettings, Language } from '../types';
 import { SUB_NEWS_CATEGORIES } from '../data/mockNews';
 import { ArticleDetailPage } from './ArticleDetailPage';
+import { parseDateSafely } from '../firebase';
 
 interface SubNewsAppPageProps {
   articles: Article[];
@@ -77,10 +78,9 @@ export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
   const isWithinRecent7Days = (dateStr?: string) => {
     if (!dateStr) return true;
     try {
-      const cleanDate = dateStr.replace(/\./g, '-').replace(/\s.+/, '');
-      const d = new Date(cleanDate);
-      if (isNaN(d.getTime())) return true;
-      const diffDays = (Date.now() - d.getTime()) / (1000 * 3600 * 24);
+      const ts = parseDateSafely(dateStr);
+      if (ts <= 0) return true;
+      const diffDays = (Date.now() - ts) / (1000 * 3600 * 24);
       return diffDays <= 7 && diffDays >= -1;
     } catch {
       return true;
