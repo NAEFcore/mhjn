@@ -241,6 +241,58 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
     },
   ]);
 
+  // Article Management Search & Selective Deletion State
+  const [deskSearchKeyword, setDeskSearchKeyword] = useState('');
+  const [deskSearchCategory, setDeskSearchCategory] = useState<string>('all');
+  const [deskSearchStatus, setDeskSearchStatus] = useState<string>('all');
+  const [deskDateFilterType, setDeskDateFilterType] = useState<'all' | 'before_date'>('all');
+  const [deskFilterDate, setDeskFilterDate] = useState<string>('');
+  const [selectedArticleIds, setSelectedArticleIds] = useState<string[]>([]);
+
+  // Toggle selection for all visible filtered articles
+  const handleToggleSelectAll = (filteredList: Article[]) => {
+    const visibleIds = filteredList.map(a => a.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedArticleIds.includes(id));
+    if (allSelected) {
+      setSelectedArticleIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    } else {
+      setSelectedArticleIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  // Toggle selection for a single article
+  const handleToggleSelectArticle = (id: string) => {
+    setSelectedArticleIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  // Bulk Delete Selected Articles (Explicit user confirmation required)
+  const handleDeleteSelectedArticles = async () => {
+    if (selectedArticleIds.length === 0) {
+      alert('삭제할 기사를 먼저 체크박스로 선택해주세요.');
+      return;
+    }
+
+    const count = selectedArticleIds.length;
+    if (!window.confirm(`선택한 ${count}개의 기사를 영구 삭제하시겠습니까? (삭제 후 복구 불가)`)) {
+      return;
+    }
+
+    // Delete chosen ones from Firestore and backend API
+    for (const id of selectedArticleIds) {
+      deleteArticleFromFirestore(id).catch(err => {
+        console.error(`Failed to delete article ${id} from Firestore:`, err);
+      });
+      fetch(`/api/articles/${id}`, { method: 'DELETE' }).catch(() => {});
+    }
+
+    const updated = articles.filter(a => !selectedArticleIds.includes(a.id));
+    onUpdateArticles(updated);
+    setSelectedArticleIds([]);
+    alert(`선택한 ${count}개의 기사가 정상적으로 삭제되었습니다.`);
+  };
+
   // Open Writer
   const handleOpenWriter = (articleToEdit?: Article) => {
     if (articleToEdit) {
@@ -846,192 +898,367 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white">
           
           {/* TAB 1: Article List & Approval Workflow */}
-          {activeTab === 'articles' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-[#e2ded6]">
-                <div>
-                  <h3 className="font-serif-kr text-base font-bold text-slate-900">
-                    기사 송고 & 승인 대시보드
-                  </h3>
-                  <p className="text-xs text-slate-500 font-sans">
-                    {isEditorInChief 
-                      ? '기자가 송고한 기사를 검토하여 [승인·발행] 또는 [반려]하고, 1면 톱기사를 지정합니다.'
-                      : '작성하신 기사의 송고 상태(승인 대기, 발행 완료, 반려)를 확인하고 관리합니다.'}
-                  </p>
+          {activeTab === 'articles' && (() => {
+            const filteredDeskArticles = articles.filter(art => {
+              // 1. Keyword search (title, content, reporter, tags)
+              if (deskSearchKeyword.trim()) {
+                const q = deskSearchKeyword.toLowerCase().trim();
+                const matchTitle = art.title?.toLowerCase().includes(q);
+                const matchReporter = art.reporter?.name?.toLowerCase().includes(q);
+                const matchContent = art.content?.toLowerCase().includes(q);
+                const matchTags = art.tags?.some(t => t.toLowerCase().includes(q));
+                if (!matchTitle && !matchReporter && !matchContent && !matchTags) return false;
+              }
+
+              // 2. Category filter
+              if (deskSearchCategory !== 'all' && art.category !== deskSearchCategory) {
+                return false;
+              }
+
+              // 3. Status filter
+              if (deskSearchStatus === 'PENDING' && art.status !== 'PENDING_REVIEW') return false;
+              if (deskSearchStatus === 'REJECTED' && art.status !== 'REJECTED') return false;
+              if (deskSearchStatus === 'PUBLISHED' && (art.status && art.status !== 'PUBLISHED')) return false;
+
+              // 4. Date filter (e.g. before date for old articles)
+              if (deskDateFilterType === 'before_date' && deskFilterDate) {
+                const artTime = parseDateSafely(art.publishedAt);
+                const targetTime = new Date(deskFilterDate).getTime() + (24 * 60 * 60 * 1000 - 1);
+                if (artTime > targetTime) return false;
+              }
+
+              return true;
+            });
+
+            const allVisibleSelected = filteredDeskArticles.length > 0 && 
+              filteredDeskArticles.every(a => selectedArticleIds.includes(a.id));
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-[#e2ded6]">
+                  <div>
+                    <h3 className="font-serif-kr text-base font-bold text-slate-900">
+                      기사 송고 & 승인 대시보드
+                    </h3>
+                    <p className="text-xs text-slate-500 font-sans">
+                      {isEditorInChief 
+                        ? '기자가 송고한 기사를 검토하여 [승인·발행] 또는 [반려]하고, 날짜/제목 검색 및 선택 삭제를 관리합니다.'
+                        : '작성하신 기사의 송고 상태(승인 대기, 발행 완료, 반려)를 확인하고 관리합니다.'}
+                    </p>
+                  </div>
+                  <div className="text-xs text-slate-500 font-mono">
+                    전체 {articles.length}건 / 검색 결과 {filteredDeskArticles.length}건
+                  </div>
                 </div>
-              </div>
 
-              {/* Table */}
-              <div className="border border-[#d8d3cb] rounded-xl overflow-hidden shadow-xs">
-                <table className="w-full text-left text-xs font-sans">
-                  <thead className="bg-[#f8f6f2] border-b border-[#d8d3cb] text-slate-700 font-bold font-serif-kr">
-                    <tr>
-                      <th className="p-3 text-center w-16">지면</th>
-                      <th className="p-3">기사 제목 / 섹션</th>
-                      <th className="p-3 w-28">작성 기자</th>
-                      <th className="p-3 w-28 text-center">승인 상태</th>
-                      <th className="p-3 w-20 text-center">조회수</th>
-                      <th className="p-3 text-right w-52">관리 기능</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#eeebe3]">
-                    {articles.map((art) => {
-                      const isPending = art.status === 'PENDING_REVIEW';
-                      const isRejected = art.status === 'REJECTED';
-                      const isPublished = !art.status || art.status === 'PUBLISHED';
+                {/* Filter & Bulk Action Toolbar */}
+                <div className="p-3.5 bg-[#f8f6f2] rounded-xl border border-[#d8d3cb] space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                    {/* Keyword Search */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">제목·기자·내용 검색</label>
+                      <input
+                        type="text"
+                        value={deskSearchKeyword}
+                        onChange={(e) => setDeskSearchKeyword(e.target.value)}
+                        placeholder="기사 제목, 기자명, 태그 등..."
+                        className="w-full p-2 bg-white border border-[#d8d3cb] rounded-lg text-slate-900 focus:outline-none focus:border-[#1b2a47]"
+                      />
+                    </div>
 
-                      return (
-                        <tr key={art.id} className="hover:bg-[#faf8f5] transition-colors">
-                          {/* Page Number */}
-                          <td className="p-3 text-center">
-                            <span className="px-2 py-0.5 bg-[#f0ebe3] rounded text-[11px] font-bold text-slate-700">
-                              {art.pageNumber || 1}면
-                            </span>
-                          </td>
+                    {/* Category Filter */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">카테고리</label>
+                      <select
+                        value={deskSearchCategory}
+                        onChange={(e) => setDeskSearchCategory(e.target.value)}
+                        className="w-full p-2 bg-white border border-[#d8d3cb] rounded-lg text-slate-900 focus:outline-none focus:border-[#1b2a47]"
+                      >
+                        <option value="all">전체 카테고리</option>
+                        <option value="culture_art">문화·예술</option>
+                        <option value="heritage">전통·유산</option>
+                        <option value="k_culture">K-컬처</option>
+                        <option value="opinion">오피니언</option>
+                        <option value="photo_video">포토·영상</option>
+                      </select>
+                    </div>
 
-                          {/* Title */}
-                          <td className="p-3">
-                            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                              {art.isTopHeadline && (
-                                <span className="px-1.5 py-0.2 bg-rose-600 text-white rounded text-[10px] font-black">
-                                  1면 톱
-                                </span>
-                              )}
-                              {art.isBreaking && (
-                                <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded text-[10px] font-black">
-                                  속보
-                                </span>
-                              )}
-                              {/* Channel Indicator Badge */}
-                              {art.mainNewsEnabled !== false && art.subNewsEnabled !== false ? (
-                                <span className="text-[10px] font-bold px-1.5 py-0.2 bg-gradient-to-r from-blue-100 to-amber-100 text-slate-900 border border-amber-300 rounded">
-                                  메인+서브
-                                </span>
-                              ) : art.mainNewsEnabled !== false ? (
-                                <span className="text-[10px] font-bold px-1.5 py-0.2 bg-blue-100 text-blue-900 border border-blue-300 rounded">
-                                  메인전용
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-900 border border-amber-300 rounded">
-                                  서브전용
-                                </span>
-                              )}
-                              <span className="text-[10px] font-bold text-[#1b2a47]">
-                                [{art.categoryLabel}]
-                              </span>
-                              {art.badge && (
-                                <span className="text-[10px] px-1 bg-slate-100 rounded text-slate-600 border border-slate-200">
-                                  {art.badge}
-                                </span>
-                              )}
-                            </div>
-                            <p className="font-serif-kr font-bold text-slate-900 text-sm line-clamp-1">
-                              {art.title}
-                            </p>
-                            {isRejected && art.rejectionReason && (
-                              <p className="text-[11px] text-rose-600 mt-1 font-bold">
-                                ⚠ 반려 사유: {art.rejectionReason}
-                              </p>
-                            )}
-                          </td>
+                    {/* Status Filter */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">발행 상태</label>
+                      <select
+                        value={deskSearchStatus}
+                        onChange={(e) => setDeskSearchStatus(e.target.value)}
+                        className="w-full p-2 bg-white border border-[#d8d3cb] rounded-lg text-slate-900 focus:outline-none focus:border-[#1b2a47]"
+                      >
+                        <option value="all">전체 상태</option>
+                        <option value="PUBLISHED">지면 발행완료</option>
+                        <option value="PENDING">승인 대기중</option>
+                        <option value="REJECTED">반려됨</option>
+                      </select>
+                    </div>
 
-                          {/* Reporter */}
-                          <td className="p-3">
-                            <span className="font-bold text-slate-800">{art.reporter.name}</span>
-                            <span className="text-[10px] text-slate-400 block">{art.reporter.department}</span>
-                          </td>
+                    {/* Date Search (오래된 기사 검색) */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">발행일 기준 필터</label>
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={deskDateFilterType}
+                          onChange={(e) => setDeskDateFilterType(e.target.value as any)}
+                          className="p-2 bg-white border border-[#d8d3cb] rounded-lg text-slate-900 text-xs focus:outline-none"
+                        >
+                          <option value="all">전체 기간</option>
+                          <option value="before_date">이전 날짜만</option>
+                        </select>
+                        {deskDateFilterType === 'before_date' && (
+                          <input
+                            type="date"
+                            value={deskFilterDate}
+                            onChange={(e) => setDeskFilterDate(e.target.value)}
+                            className="flex-1 p-1.5 bg-white border border-[#d8d3cb] rounded-lg text-slate-900 text-xs focus:outline-none"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-                          {/* Status */}
-                          <td className="p-3 text-center">
-                            {isPending ? (
-                              <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full font-bold text-[10px] animate-pulse">
-                                승인 대기중
-                              </span>
-                            ) : isRejected ? (
-                              <span className="px-2 py-0.5 bg-rose-100 text-rose-800 border border-rose-300 rounded-full font-bold text-[10px]">
-                                반려됨
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full font-bold text-[10px]">
-                                지면 발행완료
-                              </span>
-                            )}
-                          </td>
+                  {/* Selective Action Bar */}
+                  <div className="pt-2 border-t border-[#e2ded6] flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={() => handleToggleSelectAll(filteredDeskArticles)}
+                          className="w-4 h-4 rounded text-[#1b2a47]"
+                        />
+                        <span>현재 검색 결과 전체 선택 ({filteredDeskArticles.length}건)</span>
+                      </label>
+                      {selectedArticleIds.length > 0 && (
+                        <span className="px-2 py-0.5 bg-indigo-100 text-[#1b2a47] rounded-full text-xs font-bold font-mono">
+                          {selectedArticleIds.length}개 선택됨
+                        </span>
+                      )}
+                    </div>
 
-                          {/* Views */}
-                          <td className="p-3 text-center text-slate-500 font-mono">
-                            {art.views.toLocaleString()}
-                          </td>
+                    {selectedArticleIds.length > 0 && isEditorInChief && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteSelectedArticles}
+                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>선택한 {selectedArticleIds.length}개 기사 영구 삭제</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-                          {/* Action Buttons */}
-                          <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                              {/* Editor in Chief Approval Actions */}
-                              {isEditorInChief && isPending && (
-                                <>
-                                  <button
-                                    onClick={() => handleApproveArticle(art.id)}
-                                    title="기사 승인 및 즉시 발행"
-                                    className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1 font-bold text-[11px]"
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>승인</span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleRejectArticle(art.id)}
-                                    title="기사 반려 (수정 요청)"
-                                    className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg flex items-center gap-1 font-bold text-[11px]"
-                                  >
-                                    <XCircle className="w-3.5 h-3.5" />
-                                    <span>반려</span>
-                                  </button>
-                                </>
-                              )}
-
-                              {/* Editor in chief Top Headline toggle */}
-                              {isEditorInChief && isPublished && (
-                                <button
-                                  onClick={() => handleSetTopHeadline(art.id)}
-                                  className={`p-1.5 rounded-lg border text-[11px] font-bold flex items-center gap-1 ${
-                                    art.isTopHeadline
-                                      ? 'bg-rose-50 text-rose-700 border-rose-300'
-                                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <Star className={`w-3.5 h-3.5 ${art.isTopHeadline ? 'fill-rose-600 text-rose-600' : ''}`} />
-                                  <span>{art.isTopHeadline ? '1면 톱 지정됨' : '1면 톱'}</span>
-                                </button>
-                              )}
-
-                              {/* Edit */}
-                              <button
-                                onClick={() => handleOpenWriter(art)}
-                                title="수정"
-                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-
-                              {/* Delete */}
-                              {(isEditorInChief || art.reporter.id === currentUser?.reporterId) && (
-                                <button
-                                  onClick={() => handleDeleteArticle(art.id)}
-                                  title="삭제"
-                                  className="p-1.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
+                {/* Table */}
+                <div className="border border-[#d8d3cb] rounded-xl overflow-hidden shadow-xs">
+                  <table className="w-full text-left text-xs font-sans">
+                    <thead className="bg-[#f8f6f2] border-b border-[#d8d3cb] text-slate-700 font-bold font-serif-kr">
+                      <tr>
+                        <th className="p-3 text-center w-10">
+                          <input
+                            type="checkbox"
+                            checked={allVisibleSelected}
+                            onChange={() => handleToggleSelectAll(filteredDeskArticles)}
+                            className="w-3.5 h-3.5 rounded text-[#1b2a47]"
+                          />
+                        </th>
+                        <th className="p-3 text-center w-16">지면</th>
+                        <th className="p-3">기사 제목 / 섹션</th>
+                        <th className="p-3 w-28">작성 기자</th>
+                        <th className="p-3 w-28 text-center">승인 상태</th>
+                        <th className="p-3 w-24 text-center">발행일</th>
+                        <th className="p-3 w-16 text-center">조회수</th>
+                        <th className="p-3 text-right w-44">관리 기능</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#eeebe3]">
+                      {filteredDeskArticles.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-slate-500 font-sans">
+                            검색 조건에 일치하는 기사가 없습니다.
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredDeskArticles.map((art) => {
+                          const isPending = art.status === 'PENDING_REVIEW';
+                          const isRejected = art.status === 'REJECTED';
+                          const isPublished = !art.status || art.status === 'PUBLISHED';
+                          const isSelected = selectedArticleIds.includes(art.id);
+
+                          return (
+                            <tr key={art.id} className={`transition-colors ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-[#faf8f5]'}`}>
+                              {/* Checkbox */}
+                              <td className="p-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleSelectArticle(art.id)}
+                                  className="w-3.5 h-3.5 rounded text-[#1b2a47]"
+                                />
+                              </td>
+
+                              {/* Page Number */}
+                              <td className="p-3 text-center">
+                                <span className="px-2 py-0.5 bg-[#f0ebe3] rounded text-[11px] font-bold text-slate-700">
+                                  {art.pageNumber || 1}면
+                                </span>
+                              </td>
+
+                              {/* Title */}
+                              <td className="p-3">
+                                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                  {art.isTopHeadline && (
+                                    <span className="px-1.5 py-0.2 bg-rose-600 text-white rounded text-[10px] font-black">
+                                      1면 톱
+                                    </span>
+                                  )}
+                                  {art.isBreaking && (
+                                    <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded text-[10px] font-black">
+                                      속보
+                                    </span>
+                                  )}
+                                  {/* Channel Indicator Badge */}
+                                  {art.mainNewsEnabled !== false && art.subNewsEnabled !== false ? (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.2 bg-gradient-to-r from-blue-100 to-amber-100 text-slate-900 border border-amber-300 rounded">
+                                      메인+서브
+                                    </span>
+                                  ) : art.mainNewsEnabled !== false ? (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.2 bg-blue-100 text-blue-900 border border-blue-300 rounded">
+                                      메인전용
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-900 border border-amber-300 rounded">
+                                      서브전용
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] font-bold text-[#1b2a47]">
+                                    [{art.categoryLabel}]
+                                  </span>
+                                  {art.badge && (
+                                    <span className="text-[10px] px-1 bg-slate-100 rounded text-slate-600 border border-slate-200">
+                                      {art.badge}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="font-serif-kr font-bold text-slate-900 text-sm line-clamp-1">
+                                  {art.title}
+                                </p>
+                                {isRejected && art.rejectionReason && (
+                                  <p className="text-[11px] text-rose-600 mt-1 font-bold">
+                                    ⚠ 반려 사유: {art.rejectionReason}
+                                  </p>
+                                )}
+                              </td>
+
+                              {/* Reporter */}
+                              <td className="p-3">
+                                <span className="font-bold text-slate-800">{art.reporter.name}</span>
+                                <span className="text-[10px] text-slate-400 block">{art.reporter.department}</span>
+                              </td>
+
+                              {/* Status */}
+                              <td className="p-3 text-center">
+                                {isPending ? (
+                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full font-bold text-[10px] animate-pulse">
+                                    승인 대기중
+                                  </span>
+                                ) : isRejected ? (
+                                  <span className="px-2 py-0.5 bg-rose-100 text-rose-800 border border-rose-300 rounded-full font-bold text-[10px]">
+                                    반려됨
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full font-bold text-[10px]">
+                                    지면 발행완료
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Published At Date */}
+                              <td className="p-3 text-center text-slate-500 font-mono text-[11px]">
+                                {art.publishedAt || '-'}
+                              </td>
+
+                              {/* Views */}
+                              <td className="p-3 text-center text-slate-500 font-mono">
+                                {art.views.toLocaleString()}
+                              </td>
+
+                              {/* Action Buttons */}
+                              <td className="p-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                  {/* Editor in Chief Approval Actions */}
+                                  {isEditorInChief && isPending && (
+                                    <>
+                                      <button
+                                        onClick={() => handleApproveArticle(art.id)}
+                                        title="기사 승인 및 즉시 발행"
+                                        className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1 font-bold text-[11px]"
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        <span>승인</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleRejectArticle(art.id)}
+                                        title="기사 반려 (수정 요청)"
+                                        className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg flex items-center gap-1 font-bold text-[11px]"
+                                      >
+                                        <XCircle className="w-3.5 h-3.5" />
+                                        <span>반려</span>
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {/* Editor in chief Top Headline toggle */}
+                                  {isEditorInChief && isPublished && (
+                                    <button
+                                      onClick={() => handleSetTopHeadline(art.id)}
+                                      className={`p-1.5 rounded-lg border text-[11px] font-bold flex items-center gap-1 ${
+                                        art.isTopHeadline
+                                          ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      <Star className={`w-3.5 h-3.5 ${art.isTopHeadline ? 'fill-rose-600 text-rose-600' : ''}`} />
+                                      <span>{art.isTopHeadline ? '1면 톱 지정됨' : '1면 톱'}</span>
+                                    </button>
+                                  )}
+
+                                  {/* Edit */}
+                                  <button
+                                    onClick={() => handleOpenWriter(art)}
+                                    title="수정"
+                                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Delete Single Article */}
+                                  {(isEditorInChief || art.reporter.id === currentUser?.reporterId) && (
+                                    <button
+                                      onClick={() => handleDeleteArticle(art.id)}
+                                      title="삭제"
+                                      className="p-1.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 2: Full Article Editor / Writer */}
           {activeTab === 'write' && (

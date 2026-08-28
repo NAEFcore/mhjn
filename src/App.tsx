@@ -95,15 +95,13 @@ export default function App() {
           }
         }, (err) => {
           console.warn('Firestore subscription notice (using local cache & backend server fallback):', err?.message || err);
-          // If Firestore quota limit exceeded or offline, verify backend server fallback
+          // If Firestore quota limit exceeded or offline, load full backend server articles for all browsers
           fetch('/api/articles')
             .then(res => res.json())
             .then(data => {
               if (Array.isArray(data.articles) && data.articles.length > 0) {
-                setArticlesState((prev) => {
-                  if (!prev || prev.length === 0) return data.articles;
-                  return prev;
-                });
+                setArticlesState(data.articles);
+                savePersistedArticles(data.articles);
               }
             })
             .catch(() => {});
