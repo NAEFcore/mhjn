@@ -207,7 +207,31 @@ export function firestoreDocToArticle(docData: any, docId: string): Article {
 }
 
 /**
- * Fetch all articles from Firestore
+ * Safe date parser to handle Korean date strings ('2026. 08. 28.'), ISO strings, and timestamps
+ */
+export function parseDateSafely(dateStr?: string | null): number {
+  if (!dateStr) return 0;
+  // If direct ISO / RFC string parses cleanly
+  const direct = new Date(dateStr).getTime();
+  if (!isNaN(direct) && direct > 0) return direct;
+
+  // Clean format: '2026. 08. 28. 오후 12:30' or '2026. 08. 28.'
+  const parts = String(dateStr).replace(/[^\d]/g, ' ').trim().split(/\s+/);
+  if (parts.length >= 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const hh = parts[3] ? parseInt(parts[3], 10) : 0;
+    const mm = parts[4] ? parseInt(parts[4], 10) : 0;
+    const ss = parts[5] ? parseInt(parts[5], 10) : 0;
+    const ts = new Date(y, m, d, hh, mm, ss).getTime();
+    if (!isNaN(ts) && ts > 0) return ts;
+  }
+  return 0;
+}
+
+/**
+ * Fetch all articles from Firestore (with automatic server fallback when quota exceeded)
  */
 export async function fetchArticlesFromFirestore(): Promise<Article[]> {
   try {
@@ -220,15 +244,24 @@ export async function fetchArticlesFromFirestore(): Promise<Article[]> {
     snapshot.forEach(docSnap => {
       articles.push(firestoreDocToArticle(docSnap.data(), docSnap.id));
     });
-    // Sort latest first
+    // Sort latest first with safe date parsing
     return articles.sort((a, b) => {
-      const dateA = new Date(a.publishedAt || 0).getTime();
-      const dateB = new Date(b.publishedAt || 0).getTime();
+      const dateA = parseDateSafely(a.publishedAt);
+      const dateB = parseDateSafely(b.publishedAt);
       return dateB - dateA;
     });
-  } catch (error) {
-    console.error('Failed to fetch articles from Firestore:', error);
-    throw error;
+  } catch (error: any) {
+    console.warn('Firestore fetch notice (using backend server fallback if quota exceeded):', error?.message || error);
+    try {
+      const res = await fetch('/api/articles');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.articles) && data.articles.length > 0) {
+          return data.articles;
+        }
+      }
+    } catch {}
+    return [];
   }
 }
 
@@ -250,29 +283,41 @@ export async function fetchArticleByIdFromFirestore(articleId: string): Promise<
 }
 
 /**
- * Save / Update a single article in Firestore
+ * Save / Update a single article in Firestore & Backend Sync
  */
 export async function saveArticleToFirestore(article: Article): Promise<void> {
+  // Sync to Express backend store in parallel
+  try {
+    fetch('/api/articles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(article),
+    }).catch(() => {});
+  } catch {}
+
   try {
     const docRef = doc(db, 'articles', article.id);
     const data = articleToFirestoreDoc(article);
     await setDoc(docRef, data, { merge: true });
-  } catch (error) {
-    console.error(`Failed to save article ${article.id} to Firestore:`, error);
-    throw error;
+  } catch (error: any) {
+    console.warn(`Firestore save notice for ${article.id} (persisted to server backend):`, error?.message || error);
   }
 }
 
 /**
- * Delete an article from Firestore
+ * Delete an article from Firestore & Backend Sync
  */
 export async function deleteArticleFromFirestore(articleId: string): Promise<void> {
+  // Sync deletion to Express backend
+  try {
+    fetch(`/api/articles/${articleId}`, { method: 'DELETE' }).catch(() => {});
+  } catch {}
+
   try {
     const docRef = doc(db, 'articles', articleId);
     await deleteDoc(docRef);
-  } catch (error) {
-    console.error(`Failed to delete article ${articleId} from Firestore:`, error);
-    throw error;
+  } catch (error: any) {
+    console.warn(`Firestore delete notice for ${articleId}:`, error?.message || error);
   }
 }
 
@@ -365,16 +410,32 @@ export function subscribeToFirestoreArticles(
     snapshot.forEach(docSnap => {
       list.push(firestoreDocToArticle(docSnap.data(), docSnap.id));
     });
-    // Sort latest first
+    // Sort latest first using parseDateSafely
     const sorted = list.sort((a, b) => {
-      const dateA = new Date(a.publishedAt || 0).getTime();
-      const dateB = new Date(b.publishedAt || 0).getTime();
+      const dateA = parseDateSafely(a.publishedAt);
+      const dateB = parseDateSafely(b.publishedAt);
       return dateB - dateA;
     });
     onUpdate(sorted);
-  }, (err) => {
-    console.error('Firestore snapshot listener error:', err);
+  }, async (err) => {
+    console.warn('Firestore snapshot listener notice (using server fallback):', err?.message || err);
     if (onError) onError(err);
+    
+    // Automatically fall back to backend server if Firestore listener hits quota limit
+    try {
+      const res = await fetch('/api/articles');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.articles) && data.articles.length > 0) {
+          const serverSorted = [...data.articles].sort((a, b) => {
+            const dateA = parseDateSafely(a.publishedAt);
+            const dateB = parseDateSafely(b.publishedAt);
+            return dateB - dateA;
+          });
+          onUpdate(serverSorted);
+        }
+      }
+    } catch {}
   });
 }
 

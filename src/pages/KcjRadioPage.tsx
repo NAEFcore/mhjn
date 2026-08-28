@@ -37,6 +37,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Article, Language, CategoryId, AdSettings } from '../types';
+import { parseDateSafely } from '../firebase';
 import { CATEGORY_TABS } from '../data/mockNews';
 import { translateArticleToEnglish } from '../utils/translator';
 import studioOnAirImage from '../assets/images/kcj_radio_onair_1787733125521.jpg';
@@ -191,8 +192,8 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
   const publishedArticles = useMemo(() => {
     const list = articles.filter(a => !a.status || a.status === 'PUBLISHED');
     return [...list].sort((a, b) => {
-      const dateA = new Date(a.publishedAt || 0).getTime();
-      const dateB = new Date(b.publishedAt || 0).getTime();
+      const dateA = parseDateSafely(a.publishedAt);
+      const dateB = parseDateSafely(b.publishedAt);
       return dateB - dateA;
     });
   }, [articles]);

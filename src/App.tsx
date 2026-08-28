@@ -93,6 +93,19 @@ export default function App() {
         if (initial && initial.length > 0) {
           setArticlesState(initial);
           savePersistedArticles(initial);
+        } else {
+          // Fallback: Check backend server articles
+          fetch('/api/articles')
+            .then(res => res.json())
+            .then(data => {
+              if (Array.isArray(data.articles) && data.articles.length > 0) {
+                setArticlesState((prev) => {
+                  if (!prev || prev.length <= 15) return data.articles;
+                  return prev;
+                });
+              }
+            })
+            .catch(() => {});
         }
 
         // 2. Realtime listener for cross-window & cross-device instant sync
@@ -102,7 +115,7 @@ export default function App() {
             savePersistedArticles(firestoreArticles);
           }
         }, (err) => {
-          console.warn('Firestore subscription notice (using local cache):', err);
+          console.warn('Firestore subscription notice (using local cache & backend server):', err?.message || err);
         });
       } catch (err) {
         console.warn('Firestore initialization fallback:', err);

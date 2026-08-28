@@ -66,7 +66,7 @@ import { RssAutoCollectorTab } from './RssAutoCollectorTab';
 import { McstRssCollectorTab } from './McstRssCollectorTab';
 import { PopupManagerTab } from './PopupManagerTab';
 import { WordPressImportTab } from './WordPressImportTab';
-import { saveArticleToFirestore, deleteArticleFromFirestore, saveArticlesBatchToFirestore } from '../firebase';
+import { saveArticleToFirestore, deleteArticleFromFirestore, saveArticlesBatchToFirestore, parseDateSafely } from '../firebase';
 
 interface AdminDeskModalProps {
   onClose: () => void;
@@ -1457,8 +1457,8 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                         alert('발행된 기사가 없습니다.');
                         return;
                       }
-                      // Sort by date desc
-                      const sorted = [...published].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+                      // Sort by date desc using parseDateSafely
+                      const sorted = [...published].sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
                       
                       const updated = articles.map(art => {
                         // Reset first
