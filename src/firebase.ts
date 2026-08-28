@@ -467,14 +467,18 @@ export async function seedInitialArticlesIfEmpty(): Promise<Article[] | null> {
 
 /**
  * Realtime subscriber for Firestore articles
+ * Limits reads on initial app opening to the latest necessary articles (e.g. limit 80)
+ * to save Firestore read quota while keeping all main news sections, rankings, and sub-news active.
  */
 export function subscribeToFirestoreArticles(
   onUpdate: (articles: Article[]) => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
+  limitCount: number = 80
 ): () => void {
   const articlesCol = collection(db, 'articles');
+  const q = query(articlesCol, limit(limitCount));
   
-  return onSnapshot(articlesCol, (snapshot) => {
+  return onSnapshot(q, (snapshot) => {
     if (snapshot.empty) {
       // Do NOT wipe out existing articles with empty array on empty snapshot
       return;
