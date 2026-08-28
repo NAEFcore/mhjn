@@ -87,45 +87,47 @@ export function loadPersistedArticles(): Article[] {
     console.warn('Failed to load articles from storage:', e);
   }
 
-  // 2. Try user backup key
-  try {
-    const backup = localStorage.getItem(STORAGE_KEYS.ARTICLES_BACKUP);
-    if (backup) {
-      const parsedBackup = JSON.parse(backup);
-      if (Array.isArray(parsedBackup) && parsedBackup.length > 0) {
-        // Merge with initial articles without losing user articles
-        const userArticleIds = new Set(parsedBackup.map((a: Article) => a.id));
-        const nonDuplicateInitials = INITIAL_ARTICLES.filter(a => !userArticleIds.has(a.id));
-        return [...parsedBackup, ...nonDuplicateInitials];
-      }
-    }
-  } catch {}
-
   return INITIAL_ARTICLES;
 }
 
-// Save articles permanently across multiple safety slots and server backend
+// Save articles safely in client-side cache with quota management (Firestore is Source of Truth)
 export function savePersistedArticles(articles: Article[]): void {
+  // 1. Remove legacy duplicate keys to reclaim localStorage quota
   try {
-    const jsonStr = JSON.stringify(articles);
+    localStorage.removeItem(STORAGE_KEYS.ARTICLES_LEGACY);
+    localStorage.removeItem(STORAGE_KEYS.ARTICLES_BACKUP);
+  } catch {}
+
+  // 2. Cache recent articles safely without exceeding browser localStorage quota
+  try {
+    // Keep the most recent 50 articles in local cache for fast initial boot
+    const cacheSlice = articles.slice(0, 50);
+    const jsonStr = JSON.stringify(cacheSlice);
     localStorage.setItem(STORAGE_KEYS.ARTICLES_CURRENT, jsonStr);
-    localStorage.setItem(STORAGE_KEYS.ARTICLES_LEGACY, jsonStr);
-
-    // Save custom/user articles to dedicated backup key
-    const customArticles = articles.filter(a => a.id.startsWith('art-user-') || a.id.startsWith('art-sheet-') || a.id.startsWith('art-wp-'));
-    if (customArticles.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.ARTICLES_BACKUP, JSON.stringify(customArticles));
+  } catch (e) {
+    // Handle QuotaExceededError gracefully by pruning content or cache size
+    try {
+      const minimalSlice = articles.slice(0, 20).map(a => ({
+        ...a,
+        content: a.content && a.content.length > 600 ? a.content.slice(0, 600) + '...' : a.content,
+      }));
+      localStorage.setItem(STORAGE_KEYS.ARTICLES_CURRENT, JSON.stringify(minimalSlice));
+    } catch {
+      // If still restricted, safely remove local key without breaking app execution
+      try {
+        localStorage.removeItem(STORAGE_KEYS.ARTICLES_CURRENT);
+      } catch {}
     }
+  }
 
-    // Also broadcast to server backend in background if available
+  // 3. Broadcast sync to backend server in background
+  try {
     fetch('/api/articles/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ articles }),
     }).catch(() => {});
-  } catch (e) {
-    console.error('Failed to save articles to storage:', e);
-  }
+  } catch {}
 }
 
 // Load saved ad settings
@@ -475,9 +477,13 @@ export function loadPersistedRssItems(): AutoCollectedItem[] {
 
 export function savePersistedRssItems(items: AutoCollectedItem[]): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.RSS_ITEMS, JSON.stringify(items));
+    const limited = items.slice(0, 30);
+    localStorage.setItem(STORAGE_KEYS.RSS_ITEMS, JSON.stringify(limited));
   } catch (e) {
-    console.error('Failed to save RSS items:', e);
+    try {
+      const minimal = items.slice(0, 10);
+      localStorage.setItem(STORAGE_KEYS.RSS_ITEMS, JSON.stringify(minimal));
+    } catch {}
   }
 }
 
@@ -559,9 +565,13 @@ export function loadPersistedMcstRssItems(): McstRssItem[] {
 
 export function savePersistedMcstRssItems(items: McstRssItem[]): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.MCST_RSS_ITEMS, JSON.stringify(items));
+    const limited = items.slice(0, 30);
+    localStorage.setItem(STORAGE_KEYS.MCST_RSS_ITEMS, JSON.stringify(limited));
   } catch (e) {
-    console.error('Failed to save MCST RSS items:', e);
+    try {
+      const minimal = items.slice(0, 10);
+      localStorage.setItem(STORAGE_KEYS.MCST_RSS_ITEMS, JSON.stringify(minimal));
+    } catch {}
   }
 }
 
