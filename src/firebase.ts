@@ -476,7 +476,7 @@ export function subscribeToFirestoreArticles(
   
   return onSnapshot(articlesCol, (snapshot) => {
     if (snapshot.empty) {
-      onUpdate([]);
+      // Do NOT wipe out existing articles with empty array on empty snapshot
       return;
     }
     const list: Article[] = [];
