@@ -71,6 +71,7 @@ export const db = firestoreInstance;
  */
 export function articleToFirestoreDoc(article: Article): Record<string, any> {
   const now = new Date().toISOString();
+  const pubDate = article.publishedAt || now;
   return {
     articleId: article.id,
     category: article.category || 'culture_art',
@@ -78,7 +79,8 @@ export function articleToFirestoreDoc(article: Article): Record<string, any> {
     koreanBody: article.content || article.summary || '',
     englishTitle: article.titleEn || '',
     englishBody: article.contentEn || '',
-    createdAt: article.publishedAt || now,
+    createdAt: pubDate,
+    publishedAt: pubDate,
     updatedAt: article.updatedAt || now,
     status: article.status || 'PUBLISHED',
     
@@ -476,7 +478,7 @@ export function subscribeToFirestoreArticles(
   limitCount: number = 80
 ): () => void {
   const articlesCol = collection(db, 'articles');
-  const q = query(articlesCol, limit(limitCount));
+  const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
   
   return onSnapshot(q, (snapshot) => {
     if (snapshot.empty) {
