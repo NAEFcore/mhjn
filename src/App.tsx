@@ -155,6 +155,13 @@ export default function App() {
     setArticlesState((prev) => {
       const next = typeof newArticles === 'function' ? newArticles(prev) : newArticles;
       savePersistedArticles(next);
+      if (Array.isArray(next) && next.length > 0) {
+        fetch('/api/articles/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ articles: next }),
+        }).catch(() => {});
+      }
       return next;
     });
   };
