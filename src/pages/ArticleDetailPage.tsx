@@ -41,6 +41,7 @@ import { McstPressReleaseSidebar } from '../components/McstPressReleaseSidebar';
 import { DynamicAdBanner } from '../components/DynamicAdBanner';
 import { ArticleBodyRenderer } from '../components/ArticleBodyRenderer';
 import { translateArticleToEnglish, TranslatedArticleData } from '../utils/translator';
+import { fetchAdjacentArticlesFromFirestore, parseDateSafely } from '../firebase';
 import { Radio } from 'lucide-react';
 
 interface ArticleDetailPageProps {
@@ -88,6 +89,65 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
 
   // Typography font size state
   const [fontSize, setFontSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
+
+  // Adjacent Articles (Previous Older / Next Newer) Navigation State
+  const [adjacentArticles, setAdjacentArticles] = useState<{
+    prev: Article | null;
+    next: Article | null;
+    isLoading: boolean;
+  }>({ prev: null, next: null, isLoading: true });
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadAdjacent = async () => {
+      // 1. Check in-memory allArticles first
+      const sorted = [...allArticles].sort(
+        (a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt)
+      );
+      const currentIndex = sorted.findIndex((a) => a.id === article.id);
+
+      let prevArt: Article | null = null;
+      let nextArt: Article | null = null;
+
+      if (currentIndex !== -1) {
+        if (currentIndex > 0) {
+          nextArt = sorted[currentIndex - 1]; // Newer
+        }
+        if (currentIndex < sorted.length - 1) {
+          prevArt = sorted[currentIndex + 1]; // Older
+        }
+      }
+
+      // If either adjacent article is missing from in-memory pool, query Firestore with cursor
+      if (!prevArt || !nextArt) {
+        try {
+          const fsAdjacent = await fetchAdjacentArticlesFromFirestore(article, article.category);
+          if (!prevArt && fsAdjacent.prevArticle) {
+            prevArt = fsAdjacent.prevArticle;
+          }
+          if (!nextArt && fsAdjacent.nextArticle) {
+            nextArt = fsAdjacent.nextArticle;
+          }
+        } catch (err) {
+          console.warn('[ADJACENT] Notice querying adjacent articles from Firestore:', err);
+        }
+      }
+
+      if (isMounted) {
+        setAdjacentArticles({
+          prev: prevArt,
+          next: nextArt,
+          isLoading: false,
+        });
+      }
+    };
+
+    loadAdjacent();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [article.id, article.publishedAt, allArticles]);
 
   // Real-time Automatic Translation State (Korean -> English)
   const [isTranslating, setIsTranslating] = useState(false);
@@ -1169,6 +1229,69 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* Previous / Next Article Navigation Bar */}
+        <section className="bg-white border border-[#d8d3cb] rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+            <h4 className="font-serif-kr font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+              <span>📰</span>
+              <span>{isEn ? 'Article Navigation' : '이전 기사 · 다음 기사 탐색'}</span>
+            </h4>
+            <span className="text-[11px] text-slate-400 font-sans hidden sm:inline">
+              {isEn ? 'Chronological Archive Navigation' : '발행일 기준 순차 탐색 (Firestore 연동)'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Next (Newer) Article */}
+            <div className="p-3.5 bg-[#fcfaf7] border border-[#e2ded6] rounded-xl flex flex-col justify-between hover:border-[#1b2a47] transition-colors">
+              <span className="text-[10px] font-bold text-amber-700 font-serif-kr flex items-center gap-1">
+                <span>▲ {isEn ? 'Next Article (Newer)' : '다음 기사 (최신)'}</span>
+              </span>
+              {adjacentArticles.next ? (
+                <button
+                  onClick={() => onSelectRelatedArticle(adjacentArticles.next!)}
+                  className="text-left mt-1.5 group cursor-pointer w-full"
+                >
+                  <p className="font-serif-kr font-bold text-xs text-slate-900 group-hover:text-[#1b2a47] line-clamp-2 leading-snug">
+                    {(isEn && adjacentArticles.next.titleEn) ? adjacentArticles.next.titleEn : adjacentArticles.next.title}
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-mono mt-1 block">
+                    {adjacentArticles.next.publishedAt} · {adjacentArticles.next.reporter?.name} 기자
+                  </span>
+                </button>
+              ) : (
+                <p className="text-xs text-slate-400 font-serif-kr mt-1.5 py-1">
+                  {adjacentArticles.isLoading ? '다음 기사 확인 중...' : '다음 기사가 없습니다 (가장 최신 기사)'}
+                </p>
+              )}
+            </div>
+
+            {/* Previous (Older) Article */}
+            <div className="p-3.5 bg-[#fcfaf7] border border-[#e2ded6] rounded-xl flex flex-col justify-between hover:border-[#1b2a47] transition-colors">
+              <span className="text-[10px] font-bold text-slate-500 font-serif-kr flex items-center gap-1">
+                <span>▼ {isEn ? 'Previous Article (Older)' : '이전 기사 (과거)'}</span>
+              </span>
+              {adjacentArticles.prev ? (
+                <button
+                  onClick={() => onSelectRelatedArticle(adjacentArticles.prev!)}
+                  className="text-left mt-1.5 group cursor-pointer w-full"
+                >
+                  <p className="font-serif-kr font-bold text-xs text-slate-900 group-hover:text-[#1b2a47] line-clamp-2 leading-snug">
+                    {(isEn && adjacentArticles.prev.titleEn) ? adjacentArticles.prev.titleEn : adjacentArticles.prev.title}
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-mono mt-1 block">
+                    {adjacentArticles.prev.publishedAt} · {adjacentArticles.prev.reporter?.name} 기자
+                  </span>
+                </button>
+              ) : (
+                <p className="text-xs text-slate-400 font-serif-kr mt-1.5 py-1">
+                  {adjacentArticles.isLoading ? '이전 기사 확인 중...' : '이전 기사가 없습니다 (마지막 기사)'}
+                </p>
+              )}
+            </div>
           </div>
         </section>
 

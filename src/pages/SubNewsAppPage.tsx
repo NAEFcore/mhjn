@@ -27,7 +27,7 @@ import {
 import { Article, Reporter, AuthUser, SubNewsCategoryId, AdSettings, Language } from '../types';
 import { SUB_NEWS_CATEGORIES } from '../data/mockNews';
 import { ArticleDetailPage } from './ArticleDetailPage';
-import { parseDateSafely } from '../firebase';
+import { parseDateSafely, fetchArticleByIdFromFirestore } from '../firebase';
 
 interface SubNewsAppPageProps {
   articles: Article[];
@@ -132,10 +132,68 @@ export const SubNewsAppPage: React.FC<SubNewsAppPageProps> = ({
   // Popular / Trending Articles
   const trendingArticles = [...subArticles].sort((a, b) => b.views - a.views).slice(0, 6);
 
-  // Handle article select
-  const handleOpenArticle = (art: Article) => {
-    setSelectedArticle(art);
-    window.history.pushState(null, '', `/sub-news/article/${art.id}`);
+  // Direct URL resolution (/sub-news/article/:id)
+  useEffect(() => {
+    const resolveSubArticle = async () => {
+      const path = window.location.pathname;
+      const match = path.match(/\/sub-news\/article\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        const articleId = match[1];
+        const localFound = articles.find((a) => a.id === articleId);
+        if (localFound) {
+          setSelectedArticle(localFound);
+          return;
+        }
+
+        try {
+          const fsArt = await fetchArticleByIdFromFirestore(articleId);
+          if (fsArt) {
+            setSelectedArticle(fsArt);
+            if (!articles.some(a => a.id === fsArt.id)) {
+              onUpdateArticles([fsArt, ...articles]);
+            }
+          }
+        } catch (err) {
+          console.warn('[SUB-NEWS] Failed to load article from Firestore:', err);
+        }
+      }
+    };
+
+    resolveSubArticle();
+  }, [articles, onUpdateArticles]);
+
+  // Handle article select (supports Article object or articleId)
+  const handleOpenArticle = async (artOrId: Article | string) => {
+    if (typeof artOrId === 'string') {
+      const localFound = articles.find((a) => a.id === artOrId);
+      if (localFound) {
+        setSelectedArticle(localFound);
+        window.history.pushState(null, '', `/sub-news/article/${localFound.id}`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      try {
+        const fsArt = await fetchArticleByIdFromFirestore(artOrId);
+        if (fsArt) {
+          setSelectedArticle(fsArt);
+          if (!articles.some(a => a.id === fsArt.id)) {
+            onUpdateArticles([fsArt, ...articles]);
+          }
+          window.history.pushState(null, '', `/sub-news/article/${fsArt.id}`);
+        }
+      } catch (err) {
+        console.warn('[SUB-NEWS] Error opening article by ID:', err);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setSelectedArticle(artOrId);
+    if (!articles.some(a => a.id === artOrId.id)) {
+      onUpdateArticles([artOrId, ...articles]);
+    }
+    window.history.pushState(null, '', `/sub-news/article/${artOrId.id}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

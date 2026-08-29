@@ -346,20 +346,125 @@ export async function fetchArticlesFromFirestore(): Promise<Article[]> {
 }
 
 /**
- * Fetch a single article by articleId from Firestore
+ * Fetch a single article by articleId from Firestore (Requirement: single-doc fetch with zero collection scans)
  */
 export async function fetchArticleByIdFromFirestore(articleId: string): Promise<Article | null> {
+  if (!articleId) return null;
+  const cleanId = String(articleId).trim();
+
   try {
-    const docRef = doc(db, 'articles', articleId);
+    // 1. Direct document key lookup
+    const docRef = doc(db, 'articles', cleanId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return firestoreDocToArticle(docSnap.data(), docSnap.id);
     }
+
+    // 2. Try prefix 'art-wp-' if numeric ID was provided
+    if (!cleanId.startsWith('art-wp-') && /^\d+$/.test(cleanId)) {
+      const wpDocRef = doc(db, 'articles', `art-wp-${cleanId}`);
+      const wpSnap = await getDoc(wpDocRef);
+      if (wpSnap.exists()) {
+        return firestoreDocToArticle(wpSnap.data(), wpSnap.id);
+      }
+    }
+
+    // 3. Try removing 'art-wp-' prefix if raw numeric ID was stored
+    if (cleanId.startsWith('art-wp-')) {
+      const rawId = cleanId.replace(/^art-wp-/, '');
+      const rawDocRef = doc(db, 'articles', rawId);
+      const rawSnap = await getDoc(rawDocRef);
+      if (rawSnap.exists()) {
+        return firestoreDocToArticle(rawSnap.data(), rawSnap.id);
+      }
+    }
+
+    // 4. Targeted field query fallback (limit 1)
+    const articlesCol = collection(db, 'articles');
+    const qField = query(articlesCol, where('id', '==', cleanId), limit(1));
+    const qSnap = await getDocs(qField);
+    if (!qSnap.empty) {
+      return firestoreDocToArticle(qSnap.docs[0].data(), qSnap.docs[0].id);
+    }
+
+    // 5. Query by wpPostId if numeric
+    if (/^\d+$/.test(cleanId) || cleanId.startsWith('art-wp-')) {
+      const wpNum = cleanId.replace(/^art-wp-/, '');
+      const qWp = query(articlesCol, where('wpPostId', '==', wpNum), limit(1));
+      const qWpSnap = await getDocs(qWp);
+      if (!qWpSnap.empty) {
+        return firestoreDocToArticle(qWpSnap.docs[0].data(), qWpSnap.docs[0].id);
+      }
+    }
+
+    // 6. Final fallback to Express server store
+    try {
+      const res = await fetch(`/api/articles/${encodeURIComponent(cleanId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.article) {
+          return data.article;
+        }
+      }
+    } catch {}
+
     return null;
   } catch (error) {
-    console.error(`Failed to fetch article ${articleId} from Firestore:`, error);
+    console.error(`Failed to fetch article ${cleanId} from Firestore:`, error);
     return null;
   }
+}
+
+/**
+ * Fetch adjacent (previous older / next newer) articles from Firestore
+ * Uses orderBy + limit(1) cursors without full-collection scanning
+ */
+export async function fetchAdjacentArticlesFromFirestore(
+  currentArticle: Article,
+  category?: string
+): Promise<{ prevArticle: Article | null; nextArticle: Article | null }> {
+  let prevArticle: Article | null = null;
+  let nextArticle: Article | null = null;
+
+  if (!currentArticle || !currentArticle.publishedAt) {
+    return { prevArticle, nextArticle };
+  }
+
+  const articlesCol = collection(db, 'articles');
+
+  // 1. Previous (Older) Article: publishedAt < currentArticle.publishedAt, order by desc, limit 1
+  try {
+    let prevQ = query(
+      articlesCol,
+      where('publishedAt', '<', currentArticle.publishedAt),
+      orderBy('publishedAt', 'desc'),
+      limit(1)
+    );
+    let prevSnap = await getDocs(prevQ);
+    if (!prevSnap.empty) {
+      prevArticle = firestoreDocToArticle(prevSnap.docs[0].data(), prevSnap.docs[0].id);
+    }
+  } catch (prevErr) {
+    console.warn('[ADJACENT] Querying older article fallback:', prevErr);
+  }
+
+  // 2. Next (Newer) Article: publishedAt > currentArticle.publishedAt, order by asc, limit 1
+  try {
+    let nextQ = query(
+      articlesCol,
+      where('publishedAt', '>', currentArticle.publishedAt),
+      orderBy('publishedAt', 'asc'),
+      limit(1)
+    );
+    let nextSnap = await getDocs(nextQ);
+    if (!nextSnap.empty) {
+      nextArticle = firestoreDocToArticle(nextSnap.docs[0].data(), nextSnap.docs[0].id);
+    }
+  } catch (nextErr) {
+    console.warn('[ADJACENT] Querying newer article fallback:', nextErr);
+  }
+
+  return { prevArticle, nextArticle };
 }
 
 /**

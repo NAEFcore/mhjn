@@ -209,10 +209,52 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleOpenArticle = (art: Article) => {
-    setSelectedArticle(art);
+  const handleOpenArticle = async (artOrId: Article | string) => {
+    if (typeof artOrId === 'string') {
+      const articleId = artOrId.trim();
+      const localFound = articles.find((a) => a.id === articleId);
+      if (localFound) {
+        setSelectedArticle(localFound);
+        setArticleNotFound(false);
+        if (window.history.pushState) {
+          window.history.pushState({ articleId: localFound.id }, '', `/article/${localFound.id}`);
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      setIsLoadingArticle(true);
+      try {
+        const firestoreArticle = await fetchArticleByIdFromFirestore(articleId);
+        if (firestoreArticle) {
+          setSelectedArticle(firestoreArticle);
+          setArticleNotFound(false);
+          if (!articles.some(a => a.id === firestoreArticle.id)) {
+            onUpdateArticles([firestoreArticle, ...articles]);
+          }
+          if (window.history.pushState) {
+            window.history.pushState({ articleId: firestoreArticle.id }, '', `/article/${firestoreArticle.id}`);
+          }
+        } else {
+          setArticleNotFound(true);
+        }
+      } catch (err) {
+        console.error('[DETAIL] Failed to fetch single article from Firestore:', err);
+        setArticleNotFound(true);
+      } finally {
+        setIsLoadingArticle(false);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setSelectedArticle(artOrId);
+    setArticleNotFound(false);
+    if (!articles.some(a => a.id === artOrId.id)) {
+      onUpdateArticles([artOrId, ...articles]);
+    }
     if (window.history.pushState) {
-      window.history.pushState({ articleId: art.id }, '', `/article/${art.id}`);
+      window.history.pushState({ articleId: artOrId.id }, '', `/article/${artOrId.id}`);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
