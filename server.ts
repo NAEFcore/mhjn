@@ -697,6 +697,37 @@ app.delete('/api/articles/:id', (req, res) => {
   }
 });
 
+// API: Bulk Delete Articles by IDs
+app.post('/api/articles/bulk-delete', (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (Array.isArray(ids) && ids.length > 0) {
+      const deleteIdSet = new Set(ids);
+      serverArticles = serverArticles.filter(a => !deleteIdSet.has(a.id));
+      writeJsonFile(ARTICLES_FILE, serverArticles);
+      console.log(`[BACKEND SERVER] Bulk deleted ${ids.length} articles. Remaining: ${serverArticles.length}`);
+    }
+    res.json({ success: true, count: serverArticles.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Bulk delete failed' });
+  }
+});
+
+// API: Replace All Articles (Exact synchronized overwrite)
+app.post('/api/articles/replace-all', (req, res) => {
+  try {
+    const { articles } = req.body;
+    if (Array.isArray(articles)) {
+      serverArticles = articles;
+      writeJsonFile(ARTICLES_FILE, serverArticles);
+      console.log(`[BACKEND SERVER] Replaced all articles. Total: ${serverArticles.length}`);
+    }
+    res.json({ success: true, count: serverArticles.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Replace all articles failed' });
+  }
+});
+
 // API: Bulk Sync Articles (Upsert merge into serverArticles without deleting unmentioned articles)
 app.post('/api/articles/sync', (req, res) => {
   try {

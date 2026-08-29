@@ -35,8 +35,8 @@ import {
 } from '../utils/wordpressImporter';
 import { 
   saveArticleToFirestore, 
-  getWordPressImportedArticles, 
-  deleteWordPressImportedArticlesFromFirestore 
+  deleteWordPressImportedArticlesFromFirestore,
+  getFirestoreArticleTotalCount 
 } from '../firebase';
 
 interface WordPressImportTabProps {
@@ -70,6 +70,15 @@ export const WordPressImportTab: React.FC<WordPressImportTabProps> = ({
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [purgeTargetCount, setPurgeTargetCount] = useState<number>(0);
   const [purgeSuccessNotice, setPurgeSuccessNotice] = useState<string | null>(null);
+  const [liveTotalFirestoreCount, setLiveTotalFirestoreCount] = useState<number | null>(null);
+
+  React.useEffect(() => {
+    getFirestoreArticleTotalCount()
+      .then((count) => {
+        if (count > 0) setLiveTotalFirestoreCount(count);
+      })
+      .catch(() => {});
+  }, []);
 
   // Calculate existing WordPress vs Manual articles from props
   const wpArticlesInProps = React.useMemo(() => {
@@ -86,39 +95,43 @@ export const WordPressImportTab: React.FC<WordPressImportTabProps> = ({
     return existingArticles.length - wpArticlesInProps.length;
   }, [existingArticles, wpArticlesInProps]);
 
-  // Open Purge Modal with fresh count
-  const handleOpenPurgeModal = async () => {
-    try {
-      const wpInFirestore = await getWordPressImportedArticles();
-      const count = Math.max(wpInFirestore.length, wpArticlesInProps.length);
-      setPurgeTargetCount(count);
-      setShowPurgeModal(true);
-    } catch {
-      setPurgeTargetCount(wpArticlesInProps.length);
-      setShowPurgeModal(true);
-    }
+  // Open Purge Modal with strictly matched count from the unified Source of Truth
+  const handleOpenPurgeModal = () => {
+    const targetIds = wpArticlesInProps.map(a => a.id);
+    console.log(`[WP PURGE] Modal Opened. Target WordPress Article IDs (${targetIds.length}건):`, targetIds);
+    setPurgeTargetCount(targetIds.length);
+    setShowPurgeModal(true);
   };
 
-  // Execute Batch Purge of WordPress Imported Articles
+  // Execute Batch Purge of WordPress Imported Articles using exact target IDs
   const handleExecutePurge = async () => {
+    const targetIds = wpArticlesInProps.map(a => a.id);
+    console.log(`[WP PURGE] Execution Started. Target deletion count: ${targetIds.length}건. IDs:`, targetIds);
+
+    if (targetIds.length === 0) {
+      setShowPurgeModal(false);
+      return;
+    }
+
     setIsPurging(true);
-    setPurgeProgress({ deleted: 0, total: purgeTargetCount });
+    setPurgeProgress({ deleted: 0, total: targetIds.length });
+
     try {
-      const { deletedCount } = await deleteWordPressImportedArticlesFromFirestore((deleted, total) => {
-        setPurgeProgress({ deleted, total });
-      });
+      const { deletedCount } = await deleteWordPressImportedArticlesFromFirestore(
+        targetIds,
+        (deleted, total) => {
+          setPurgeProgress({ deleted, total });
+        }
+      );
 
       setShowPurgeModal(false);
       setPurgeSuccessNotice(`총 ${deletedCount}건의 WordPress 가져온 기사를 안전하게 비웠습니다. (정식 기사는 보존됨)`);
 
-      // Filter remaining in-memory articles
-      const remaining = existingArticles.filter(a => {
-        const isWp = a.importSource === 'wordpress' || 
-                     a.sourceName === 'WordPress Import' || 
-                     a.id.startsWith('art-wp-');
-        const isStandardDemo = /^art-00[1-9]$/.test(a.id) || /^art-01[0-9]$/.test(a.id);
-        return !isWp || isStandardDemo;
-      });
+      const targetIdSet = new Set(targetIds);
+      // Filter remaining in-memory articles strictly matching remaining IDs
+      const remaining = existingArticles.filter(a => !targetIdSet.has(a.id));
+
+      console.log(`[WP PURGE] Purge Finished. Deleted: ${deletedCount}건, Remaining Articles: ${remaining.length}건`);
 
       if (onArticlesPurged) {
         onArticlesPurged(remaining);
@@ -386,7 +399,7 @@ export const WordPressImportTab: React.FC<WordPressImportTabProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-stone-900">Firestore 등록 기사 현황</span>
               <span className="text-[11px] bg-stone-200 text-stone-700 px-2 py-0.5 rounded font-mono font-bold">
-                전체 {existingArticles.length.toLocaleString()}건
+                {liveTotalFirestoreCount !== null ? `Firestore DB 전체 ${liveTotalFirestoreCount.toLocaleString()}건 (현재 로드 ${existingArticles.length.toLocaleString()}건)` : `전체 ${existingArticles.length.toLocaleString()}건`}
               </span>
             </div>
             <p className="text-xs text-stone-600 mt-0.5 flex items-center gap-2">

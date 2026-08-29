@@ -66,7 +66,15 @@ import { RssAutoCollectorTab } from './RssAutoCollectorTab';
 import { McstRssCollectorTab } from './McstRssCollectorTab';
 import { PopupManagerTab } from './PopupManagerTab';
 import { WordPressImportTab } from './WordPressImportTab';
-import { saveArticleToFirestore, deleteArticleFromFirestore, saveArticlesBatchToFirestore, parseDateSafely } from '../firebase';
+import { 
+  saveArticleToFirestore, 
+  deleteArticleFromFirestore, 
+  saveArticlesBatchToFirestore, 
+  parseDateSafely,
+  getFirestoreArticleTotalCount,
+  fetchMoreArticlesFromFirestore,
+  searchAllFirestoreArticles
+} from '../firebase';
 
 interface AdminDeskModalProps {
   onClose: () => void;
@@ -248,6 +256,36 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
   const [deskDateFilterType, setDeskDateFilterType] = useState<'all' | 'before_date'>('all');
   const [deskFilterDate, setDeskFilterDate] = useState<string>('');
   const [selectedArticleIds, setSelectedArticleIds] = useState<string[]>([]);
+  
+  // Live Firestore Total Article Count from Server
+  const [totalFirestoreCount, setTotalFirestoreCount] = useState<number | null>(null);
+  const [isSearchingFirestore, setIsSearchingFirestore] = useState(false);
+
+  React.useEffect(() => {
+    getFirestoreArticleTotalCount()
+      .then((count) => {
+        if (count > 0) setTotalFirestoreCount(count);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleDeepSearchFirestore = async () => {
+    setIsSearchingFirestore(true);
+    try {
+      const results = await searchAllFirestoreArticles(deskSearchKeyword, deskSearchCategory, 150);
+      if (results.length > 0) {
+        const existingIdSet = new Set(articles.map((a) => a.id));
+        const newArticles = results.filter((a) => !existingIdSet.has(a.id));
+        if (newArticles.length > 0) {
+          onUpdateArticles([...articles, ...newArticles]);
+        }
+      }
+    } catch (err) {
+      console.error('Error deep searching Firestore:', err);
+    } finally {
+      setIsSearchingFirestore(false);
+    }
+  };
 
   // Toggle selection for all visible filtered articles
   const handleToggleSelectAll = (filteredList: Article[]) => {
@@ -947,7 +985,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     </p>
                   </div>
                   <div className="text-xs text-slate-500 font-mono">
-                    전체 {articles.length}건 / 검색 결과 {filteredDeskArticles.length}건
+                    Firestore 실제 전체 기사: <strong className="text-slate-900 font-bold">{totalFirestoreCount !== null ? totalFirestoreCount.toLocaleString() : articles.length.toLocaleString()}건</strong> (현재 로드: {articles.length}건 / 검색결과: {filteredDeskArticles.length}건)
                   </div>
                 </div>
 
@@ -957,13 +995,18 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     {/* Keyword Search */}
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 mb-1">제목·기자·내용 검색</label>
-                      <input
-                        type="text"
-                        value={deskSearchKeyword}
-                        onChange={(e) => setDeskSearchKeyword(e.target.value)}
-                        placeholder="기사 제목, 기자명, 태그 등..."
-                        className="w-full p-2 bg-white border border-[#d8d3cb] rounded-lg text-slate-900 focus:outline-none focus:border-[#1b2a47]"
-                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={deskSearchKeyword}
+                          onChange={(e) => setDeskSearchKeyword(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleDeepSearchFirestore();
+                          }}
+                          placeholder="기사 제목, 기자명, 태그 등..."
+                          className="w-full p-2 bg-white border border-[#d8d3cb] rounded-lg text-slate-900 focus:outline-none focus:border-[#1b2a47]"
+                        />
+                      </div>
                     </div>
 
                     {/* Category Filter */}
@@ -1024,7 +1067,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
 
                   {/* Selective Action Bar */}
                   <div className="pt-2 border-t border-[#e2ded6] flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-800">
                         <input
                           type="checkbox"
@@ -1039,6 +1082,17 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                           {selectedArticleIds.length}개 선택됨
                         </span>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={handleDeepSearchFirestore}
+                        disabled={isSearchingFirestore}
+                        className="px-2.5 py-1 bg-[#1b2a47] hover:bg-[#253960] text-amber-300 rounded-md font-bold text-[11px] flex items-center gap-1 transition-colors shadow-2xs"
+                        title="현재 로드된 80건 외에 Firestore 전체 데이터베이스에서 추가 검색 및 불러옵니다"
+                      >
+                        <Database className="w-3 h-3 text-amber-400" />
+                        <span>{isSearchingFirestore ? '전체 DB 검색 중...' : 'Firestore 전체에서 추가 검색/불러오기'}</span>
+                      </button>
                     </div>
 
                     {selectedArticleIds.length > 0 && isEditorInChief && (

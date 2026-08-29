@@ -26,7 +26,7 @@ import { Footer } from '../components/Footer';
 import { CATEGORY_TABS } from '../data/mockNews';
 import { Article, CategoryId, Reporter, CulturalEvent, AuthUser, Language, AdSettings, IssueCluster } from '../types';
 import { loadPersistedIssueClusters } from '../utils/storage';
-import { fetchArticleByIdFromFirestore } from '../firebase';
+import { fetchArticleByIdFromFirestore, fetchMoreArticlesFromFirestore } from '../firebase';
 
 
 interface KoreaCultureJournalPageProps {
@@ -310,6 +310,47 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
 
   const activeCategoryInfo = CATEGORY_TABS.find((t) => t.id === activeCategory);
 
+  // Pagination & Load More State for Category & Search
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreByCategory, setHasMoreByCategory] = useState<Record<string, boolean>>({});
+
+  const handleLoadMoreCategoryArticles = async () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+
+    const categoryArticles = filteredArticles;
+    const oldest = categoryArticles.length > 0 
+      ? categoryArticles[categoryArticles.length - 1]?.publishedAt 
+      : undefined;
+
+    try {
+      const result = await fetchMoreArticlesFromFirestore({
+        category: activeCategory !== 'all' && activeCategory !== 'paper_edition' ? activeCategory : undefined,
+        lastPublishedAt: oldest,
+        limitCount: 30,
+      });
+
+      if (result.articles.length > 0) {
+        const existingIdSet = new Set(articles.map((a) => a.id));
+        const newUnique = result.articles.filter((a) => !existingIdSet.has(a.id));
+        if (newUnique.length > 0) {
+          onUpdateArticles([...articles, ...newUnique]);
+        }
+      }
+
+      setHasMoreByCategory((prev) => ({
+        ...prev,
+        [activeCategory]: result.hasMore && result.articles.length > 0,
+      }));
+    } catch (err) {
+      console.error('Failed to load more category articles:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const isCurrentCategoryHasMore = hasMoreByCategory[activeCategory] !== false;
+
 
 
   return (
@@ -569,6 +610,9 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
               onSelectArticle={handleOpenArticle}
               bookmarkedIds={bookmarkedIds}
               onToggleBookmark={handleToggleBookmark}
+              onLoadMore={handleLoadMoreCategoryArticles}
+              hasMore={isCurrentCategoryHasMore}
+              isLoadingMore={isLoadingMore}
             />
           </div>
         )}

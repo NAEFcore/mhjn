@@ -12,6 +12,9 @@ interface SectionArticleGridProps {
   columns?: 1 | 2 | 3;
   maxItems?: number;
   onViewMore?: () => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 }
 
 export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
@@ -24,6 +27,9 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
   columns = 2,
   maxItems,
   onViewMore,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
 }) => {
   if (articles.length === 0) {
     return (
@@ -177,6 +183,29 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
           );
         })}
       </div>
+
+      {/* Load More Pagination Button */}
+      {onLoadMore && hasMore && (
+        <div className="mt-8 text-center">
+          <button
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className="px-6 py-3 bg-white hover:bg-stone-50 text-slate-800 border border-stone-300 rounded-xl font-serif-kr font-bold text-xs shadow-xs hover:shadow-sm transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isLoadingMore ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
+                <span>기사 불러오는 중...</span>
+              </>
+            ) : (
+              <>
+                <span>이전 기사 더 불러오기</span>
+                <span className="text-[10px] text-slate-400 font-sans">(Firestore 전체 DB)</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </section>
   );
 };

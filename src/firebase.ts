@@ -12,6 +12,9 @@ import {
   query, 
   orderBy,
   limit,
+  where,
+  startAfter,
+  getCountFromServer,
   Firestore
 } from 'firebase/firestore';
 import { Article, CategoryId, SubNewsCategoryId } from './types';
@@ -578,17 +581,36 @@ export async function getWordPressImportedArticles(): Promise<Article[]> {
 }
 
 /**
- * Delete ONLY WordPress imported articles in chunked batches
+ * Delete ONLY WordPress imported articles in chunked batches by exact article IDs
+ * - Uses exact target IDs from active state to guarantee 100% Source of Truth match
  * - Leaves standard/official/manual articles untouched
  * - Updates live progress
+ * - Synchronizes with Backend server persistent store
  * - Returns total deleted count
  */
 export async function deleteWordPressImportedArticlesFromFirestore(
+  targetIdsOrProgress?: string[] | ((deleted: number, total: number) => void),
   onProgress?: (deleted: number, total: number) => void
 ): Promise<{ deletedCount: number; failedCount: number }> {
   try {
-    const wpArticles = await getWordPressImportedArticles();
-    const total = wpArticles.length;
+    let targetArticleIds: string[] = [];
+    let progressCb = onProgress;
+
+    if (Array.isArray(targetIdsOrProgress)) {
+      targetArticleIds = targetIdsOrProgress;
+    } else if (typeof targetIdsOrProgress === 'function') {
+      progressCb = targetIdsOrProgress;
+      const wpArticles = await getWordPressImportedArticles();
+      targetArticleIds = wpArticles.map(a => a.id);
+    } else {
+      const wpArticles = await getWordPressImportedArticles();
+      targetArticleIds = wpArticles.map(a => a.id);
+    }
+
+    const total = targetArticleIds.length;
+    console.log(`[WP PURGE] Target WordPress article count for deletion: ${total}`);
+    console.log('[WP PURGE] Target Article ID list:', targetArticleIds);
+
     if (total === 0) {
       return { deletedCount: 0, failedCount: 0 };
     }
@@ -598,36 +620,47 @@ export async function deleteWordPressImportedArticlesFromFirestore(
     const CHUNK_SIZE = 80;
 
     for (let i = 0; i < total; i += CHUNK_SIZE) {
-      const chunk = wpArticles.slice(i, i + CHUNK_SIZE);
+      const chunkIds = targetArticleIds.slice(i, i + CHUNK_SIZE);
       const batch = writeBatch(db);
 
-      chunk.forEach(art => {
-        const docRef = doc(db, 'articles', art.id);
+      chunkIds.forEach(id => {
+        const docRef = doc(db, 'articles', id);
         batch.delete(docRef);
       });
 
       try {
         await batch.commit();
-        deletedCount += chunk.length;
+        deletedCount += chunkIds.length;
       } catch (batchErr) {
         console.warn(`Batch delete failed at index ${i}, falling back to single delete:`, batchErr);
-        for (const art of chunk) {
+        for (const id of chunkIds) {
           try {
-            await deleteDoc(doc(db, 'articles', art.id));
+            await deleteDoc(doc(db, 'articles', id));
             deletedCount++;
           } catch (singleErr) {
-            console.error(`Failed to delete doc ${art.id}:`, singleErr);
+            console.error(`Failed to delete doc ${id}:`, singleErr);
             failedCount++;
           }
         }
       }
 
-      if (onProgress) {
-        onProgress(deletedCount, total);
+      if (progressCb) {
+        progressCb(deletedCount, total);
       }
 
       // Small yield to keep UI responsive
       await new Promise(resolve => setTimeout(resolve, 20));
+    }
+
+    // Also sync deletion with backend server
+    try {
+      await fetch('/api/articles/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: targetArticleIds }),
+      });
+    } catch (apiErr) {
+      console.warn('Backend server bulk delete notice:', apiErr);
     }
 
     return { deletedCount, failedCount };
@@ -664,4 +697,119 @@ export async function fetchDualPopupsConfigFromFirestore(): Promise<any | null> 
   }
   return null;
 }
+
+/**
+ * Fast aggregated document count from Firestore server
+ * Returns the exact total number of articles stored in Firestore (e.g. ~2,260)
+ */
+export async function getFirestoreArticleTotalCount(): Promise<number> {
+  try {
+    const articlesCol = collection(db, 'articles');
+    const snapshot = await getCountFromServer(articlesCol);
+    return snapshot.data().count;
+  } catch (err) {
+    console.warn('Failed to get count from server, fallback to default count:', err);
+    return 0;
+  }
+}
+
+export interface FetchMoreArticlesOptions {
+  category?: string;
+  subNewsCategory?: string;
+  lastPublishedAt?: string;
+  limitCount?: number;
+}
+
+/**
+ * On-demand pagination fetcher from Firestore for category pages and deep browsing
+ */
+export async function fetchMoreArticlesFromFirestore(
+  options: FetchMoreArticlesOptions = {}
+): Promise<{ articles: Article[]; hasMore: boolean; lastPublishedAt?: string }> {
+  try {
+    const { category, subNewsCategory, lastPublishedAt, limitCount = 30 } = options;
+    const articlesCol = collection(db, 'articles');
+
+    const constraints: any[] = [];
+    if (category && category !== 'all' && category !== 'paper_edition') {
+      constraints.push(where('category', '==', category));
+    }
+    if (subNewsCategory && subNewsCategory !== 'all') {
+      constraints.push(where('subNewsCategory', '==', subNewsCategory));
+    }
+
+    constraints.push(orderBy('publishedAt', 'desc'));
+
+    if (lastPublishedAt) {
+      constraints.push(startAfter(lastPublishedAt));
+    }
+
+    constraints.push(limit(limitCount));
+
+    const q = query(articlesCol, ...constraints);
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      return { articles: [], hasMore: false };
+    }
+
+    const items: Article[] = [];
+    snap.forEach((docSnap) => {
+      items.push(firestoreDocToArticle(docSnap.data(), docSnap.id));
+    });
+
+    const sorted = items.sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
+    const lastItem = sorted[sorted.length - 1];
+
+    return {
+      articles: sorted,
+      hasMore: snap.docs.length >= limitCount,
+      lastPublishedAt: lastItem?.publishedAt,
+    };
+  } catch (err) {
+    console.error('Error fetching more articles from Firestore:', err);
+    return { articles: [], hasMore: false };
+  }
+}
+
+/**
+ * Admin deep search across Firestore articles
+ */
+export async function searchAllFirestoreArticles(
+  keyword: string,
+  category: string = 'all',
+  limitCount: number = 80
+): Promise<Article[]> {
+  try {
+    const articlesCol = collection(db, 'articles');
+    let q;
+    if (category && category !== 'all') {
+      q = query(articlesCol, where('category', '==', category), limit(400));
+    } else {
+      q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(500));
+    }
+    const snap = await getDocs(q);
+    const list: Article[] = [];
+    const lower = keyword.toLowerCase().trim();
+    snap.forEach((docSnap) => {
+      const art = firestoreDocToArticle(docSnap.data(), docSnap.id);
+      if (!lower) {
+        list.push(art);
+      } else {
+        const titleMatch = art.title?.toLowerCase().includes(lower);
+        const contentMatch = art.content?.toLowerCase().includes(lower);
+        const reporterMatch = art.reporter?.name?.toLowerCase().includes(lower);
+        const tagMatch = art.tags?.some((t) => t.toLowerCase().includes(lower));
+        if (titleMatch || contentMatch || reporterMatch || tagMatch) {
+          list.push(art);
+        }
+      }
+    });
+    return list.slice(0, limitCount).sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
+  } catch (err) {
+    console.error('Error searching all articles in Firestore:', err);
+    return [];
+  }
+}
+
 
