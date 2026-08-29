@@ -579,6 +579,7 @@ export async function seedInitialArticlesIfEmpty(): Promise<Article[] | null> {
 
 // Last visible document cursor from initial 80 load or previous load more batch
 export let lastVisibleFirestoreDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+export const categoryLastDocSnapshots: Record<string, QueryDocumentSnapshot<DocumentData> | null> = {};
 
 /**
  * Realtime subscriber for Firestore articles
@@ -833,13 +834,12 @@ export interface FetchMoreArticlesOptions {
   subNewsCategory?: string;
   lastDocSnapshot?: QueryDocumentSnapshot<DocumentData> | null;
   lastArticleId?: string;
-  lastPublishedAt?: string;
   limitCount?: number;
 }
 
 /**
  * On-demand pagination fetcher from Firestore for category pages, main screen, and deep browsing
- * Uses Firestore startAfter(DocumentSnapshot) for stable cursor-based pagination
+ * Uses Firestore QueryDocumentSnapshot cursor for stable, leak-free pagination across 2,000+ articles
  */
 export async function fetchMoreArticlesFromFirestore(
   options: FetchMoreArticlesOptions = {}
@@ -856,12 +856,22 @@ export async function fetchMoreArticlesFromFirestore(
       constraints.push(where('subNewsCategory', '==', subNewsCategory));
     }
 
+    // Identical sorting constraint with initial subscriber
     constraints.push(orderBy('publishedAt', 'desc'));
 
-    // Determine cursor document snapshot
+    // Determine cursor document snapshot strictly from Firestore QueryDocumentSnapshot
     let cursorDoc: QueryDocumentSnapshot<DocumentData> | null = lastDocSnapshot || null;
+
+    // If no explicit doc snapshot passed, check category/main snapshot cache
+    if (!cursorDoc) {
+      if (category && category !== 'all' && categoryLastDocSnapshots[category]) {
+        cursorDoc = categoryLastDocSnapshots[category];
+      } else if ((!category || category === 'all') && lastVisibleFirestoreDoc) {
+        cursorDoc = lastVisibleFirestoreDoc;
+      }
+    }
     
-    // If no explicit doc snapshot provided, try fetching by article ID
+    // Only if no cached doc snapshot exists anywhere, attempt lookup by lastArticleId
     if (!cursorDoc && lastArticleId) {
       try {
         const dSnap = await getDoc(doc(db, 'articles', lastArticleId));
@@ -869,19 +879,12 @@ export async function fetchMoreArticlesFromFirestore(
           cursorDoc = dSnap as unknown as QueryDocumentSnapshot<DocumentData>;
         }
       } catch (docErr) {
-        console.warn('[LOAD MORE] Failed to resolve cursor by lastArticleId:', docErr);
+        console.warn('[LOAD MORE] Notice resolving fallback cursor by lastArticleId:', docErr);
       }
-    }
-
-    // Fall back to module-level lastVisibleFirestoreDoc if no category filter is applied
-    if (!cursorDoc && (!category || category === 'all') && lastVisibleFirestoreDoc) {
-      cursorDoc = lastVisibleFirestoreDoc;
     }
 
     if (cursorDoc) {
       constraints.push(startAfter(cursorDoc));
-    } else if (options.lastPublishedAt) {
-      constraints.push(startAfter(options.lastPublishedAt));
     }
 
     constraints.push(limit(limitCount));
@@ -897,6 +900,8 @@ export async function fetchMoreArticlesFromFirestore(
     const lastDoc = snap.docs[snap.docs.length - 1];
     if (!category || category === 'all') {
       lastVisibleFirestoreDoc = lastDoc;
+    } else {
+      categoryLastDocSnapshots[category] = lastDoc;
     }
 
     const items: Article[] = [];

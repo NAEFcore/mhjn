@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { Header } from '../components/Header';
 import { BreakingTicker } from '../components/BreakingTicker';
 import { MainNewsHero } from '../components/MainNewsHero';
@@ -355,6 +356,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
   // Pagination & Load More State for Category & Main Browsing
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreByCategory, setHasMoreByCategory] = useState<Record<string, boolean>>({});
+  const lastDocSnapshotsRef = useRef<Record<string, QueryDocumentSnapshot<DocumentData> | null>>({});
 
   const isCurrentCategoryHasMore = hasMoreByCategory[activeCategory] !== false;
 
@@ -363,37 +365,37 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
     setIsLoadingMore(true);
 
     const isAll = activeCategory === 'all' || activeCategory === 'paper_edition';
-    const currentScopeArticles = isAll ? articles : filteredArticles;
-    const lastArticle = currentScopeArticles.length > 0 
-      ? currentScopeArticles[currentScopeArticles.length - 1] 
-      : undefined;
+    const categoryKey = isAll ? 'all' : activeCategory;
+    const prevCursorDoc = lastDocSnapshotsRef.current[categoryKey] || null;
 
     try {
       const result = await fetchMoreArticlesFromFirestore({
         category: !isAll ? activeCategory : undefined,
-        lastArticleId: lastArticle?.id,
-        lastPublishedAt: lastArticle?.publishedAt,
+        lastDocSnapshot: prevCursorDoc,
         limitCount: 80,
       });
+
+      if (result.lastDocSnapshot) {
+        lastDocSnapshotsRef.current[categoryKey] = result.lastDocSnapshot;
+      }
 
       if (result.articles && result.articles.length > 0) {
         const existingIdSet = new Set(articles.map((a) => a.id));
         const newUnique = result.articles.filter((a) => !existingIdSet.has(a.id));
         
-        const nextTotal = articles.length + newUnique.length;
-        console.log(`[LOAD MORE] fetched: ${newUnique.length}, total: ${nextTotal}`);
+        console.log(`[LOAD MORE] Category: ${categoryKey}, fetched: ${result.articles.length}, newUnique: ${newUnique.length}, total: ${articles.length + newUnique.length}, hasMore: ${result.hasMore}`);
 
         if (newUnique.length > 0) {
           onUpdateArticles([...articles, ...newUnique]);
         }
 
-        const stillHasMore = result.hasMore && newUnique.length > 0;
+        // Only mark false when Firestore query itself returned hasMore: false (fewer than limitCount docs returned)
         setHasMoreByCategory((prev) => ({
           ...prev,
-          [activeCategory]: stillHasMore,
+          [activeCategory]: result.hasMore,
         }));
       } else {
-        console.log(`[LOAD MORE] fetched: 0, total: ${articles.length}`);
+        console.log(`[LOAD MORE] Category: ${categoryKey}, fetched: 0, total: ${articles.length}, completed all Firestore items`);
         setHasMoreByCategory((prev) => ({
           ...prev,
           [activeCategory]: false,
