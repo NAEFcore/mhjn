@@ -10,11 +10,13 @@ import {
   writeBatch, 
   onSnapshot, 
   query, 
-  orderBy,
-  limit,
-  where,
-  startAfter,
+  orderBy, 
+  limit, 
+  where, 
+  startAfter, 
   getCountFromServer,
+  QueryDocumentSnapshot,
+  DocumentData,
   Firestore
 } from 'firebase/firestore';
 import { Article, CategoryId, SubNewsCategoryId } from './types';
@@ -470,6 +472,9 @@ export async function seedInitialArticlesIfEmpty(): Promise<Article[] | null> {
   }
 }
 
+// Last visible document cursor from initial 80 load or previous load more batch
+export let lastVisibleFirestoreDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+
 /**
  * Realtime subscriber for Firestore articles
  * Limits reads on initial app opening to the latest necessary articles (e.g. limit 80)
@@ -488,6 +493,10 @@ export function subscribeToFirestoreArticles(
       // Do NOT wipe out existing articles with empty array on empty snapshot
       return;
     }
+
+    // Save the last visible document snapshot cursor
+    lastVisibleFirestoreDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+
     const list: Article[] = [];
     snapshot.forEach(docSnap => {
       list.push(firestoreDocToArticle(docSnap.data(), docSnap.id));
@@ -505,6 +514,7 @@ export function subscribeToFirestoreArticles(
       firstTitle: sorted[0]?.title,
       firstId: sorted[0]?.id,
       firstPublishedAt: sorted[0]?.publishedAt,
+      lastCursorId: lastVisibleFirestoreDoc?.id,
     });
 
     onUpdate(sorted);
@@ -716,18 +726,21 @@ export async function getFirestoreArticleTotalCount(): Promise<number> {
 export interface FetchMoreArticlesOptions {
   category?: string;
   subNewsCategory?: string;
+  lastDocSnapshot?: QueryDocumentSnapshot<DocumentData> | null;
+  lastArticleId?: string;
   lastPublishedAt?: string;
   limitCount?: number;
 }
 
 /**
- * On-demand pagination fetcher from Firestore for category pages and deep browsing
+ * On-demand pagination fetcher from Firestore for category pages, main screen, and deep browsing
+ * Uses Firestore startAfter(DocumentSnapshot) for stable cursor-based pagination
  */
 export async function fetchMoreArticlesFromFirestore(
   options: FetchMoreArticlesOptions = {}
-): Promise<{ articles: Article[]; hasMore: boolean; lastPublishedAt?: string }> {
+): Promise<{ articles: Article[]; hasMore: boolean; lastDocSnapshot?: QueryDocumentSnapshot<DocumentData> | null }> {
   try {
-    const { category, subNewsCategory, lastPublishedAt, limitCount = 30 } = options;
+    const { category, subNewsCategory, lastDocSnapshot, lastArticleId, limitCount = 80 } = options;
     const articlesCol = collection(db, 'articles');
 
     const constraints: any[] = [];
@@ -740,8 +753,30 @@ export async function fetchMoreArticlesFromFirestore(
 
     constraints.push(orderBy('publishedAt', 'desc'));
 
-    if (lastPublishedAt) {
-      constraints.push(startAfter(lastPublishedAt));
+    // Determine cursor document snapshot
+    let cursorDoc: QueryDocumentSnapshot<DocumentData> | null = lastDocSnapshot || null;
+    
+    // If no explicit doc snapshot provided, try fetching by article ID
+    if (!cursorDoc && lastArticleId) {
+      try {
+        const dSnap = await getDoc(doc(db, 'articles', lastArticleId));
+        if (dSnap.exists()) {
+          cursorDoc = dSnap as unknown as QueryDocumentSnapshot<DocumentData>;
+        }
+      } catch (docErr) {
+        console.warn('[LOAD MORE] Failed to resolve cursor by lastArticleId:', docErr);
+      }
+    }
+
+    // Fall back to module-level lastVisibleFirestoreDoc if no category filter is applied
+    if (!cursorDoc && (!category || category === 'all') && lastVisibleFirestoreDoc) {
+      cursorDoc = lastVisibleFirestoreDoc;
+    }
+
+    if (cursorDoc) {
+      constraints.push(startAfter(cursorDoc));
+    } else if (options.lastPublishedAt) {
+      constraints.push(startAfter(options.lastPublishedAt));
     }
 
     constraints.push(limit(limitCount));
@@ -750,7 +785,13 @@ export async function fetchMoreArticlesFromFirestore(
     const snap = await getDocs(q);
 
     if (snap.empty) {
-      return { articles: [], hasMore: false };
+      return { articles: [], hasMore: false, lastDocSnapshot: null };
+    }
+
+    // Update the last visible document cursor
+    const lastDoc = snap.docs[snap.docs.length - 1];
+    if (!category || category === 'all') {
+      lastVisibleFirestoreDoc = lastDoc;
     }
 
     const items: Article[] = [];
@@ -759,16 +800,15 @@ export async function fetchMoreArticlesFromFirestore(
     });
 
     const sorted = items.sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
-    const lastItem = sorted[sorted.length - 1];
 
     return {
       articles: sorted,
       hasMore: snap.docs.length >= limitCount,
-      lastPublishedAt: lastItem?.publishedAt,
+      lastDocSnapshot: lastDoc,
     };
   } catch (err) {
     console.error('Error fetching more articles from Firestore:', err);
-    return { articles: [], hasMore: false };
+    return { articles: [], hasMore: false, lastDocSnapshot: null };
   }
 }
 

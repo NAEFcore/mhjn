@@ -34,7 +34,8 @@ import {
   seedInitialArticlesIfEmpty,
   deleteArticleFromFirestore,
   saveDualPopupsConfigToFirestore,
-  fetchDualPopupsConfigFromFirestore
+  fetchDualPopupsConfigFromFirestore,
+  parseDateSafely
 } from './firebase';
 
 export type ViewMode = 'standard' | 'amp_mobile' | 'sub_news' | 'kcj_radio';
@@ -97,8 +98,20 @@ export default function App() {
               firstTitle: incomingArticles[0]?.title,
               firstPublishedAt: incomingArticles[0]?.publishedAt,
             });
-            setArticlesState(incomingArticles);
-            savePersistedArticles(incomingArticles);
+            setArticlesState((prev) => {
+              // If user has expanded articles beyond initial 80 via pagination, merge incoming updates cleanly
+              if (prev.length > incomingArticles.length) {
+                const incomingIdSet = new Set(incomingArticles.map((a) => a.id));
+                const olderArticles = prev.filter((a) => !incomingIdSet.has(a.id));
+                const merged = [...incomingArticles, ...olderArticles].sort(
+                  (a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt)
+                );
+                savePersistedArticles(merged);
+                return merged;
+              }
+              savePersistedArticles(incomingArticles);
+              return incomingArticles;
+            });
           }
         }, (err) => {
           console.warn('Firestore subscription notice (using local cache & backend server fallback):', err?.message || err);

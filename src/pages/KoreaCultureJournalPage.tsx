@@ -310,46 +310,59 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
 
   const activeCategoryInfo = CATEGORY_TABS.find((t) => t.id === activeCategory);
 
-  // Pagination & Load More State for Category & Search
+  // Pagination & Load More State for Category & Main Browsing
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreByCategory, setHasMoreByCategory] = useState<Record<string, boolean>>({});
 
-  const handleLoadMoreCategoryArticles = async () => {
+  const isCurrentCategoryHasMore = hasMoreByCategory[activeCategory] !== false;
+
+  const handleLoadMoreArticles = async () => {
     if (isLoadingMore) return;
     setIsLoadingMore(true);
 
-    const categoryArticles = filteredArticles;
-    const oldest = categoryArticles.length > 0 
-      ? categoryArticles[categoryArticles.length - 1]?.publishedAt 
+    const isAll = activeCategory === 'all' || activeCategory === 'paper_edition';
+    const currentScopeArticles = isAll ? articles : filteredArticles;
+    const lastArticle = currentScopeArticles.length > 0 
+      ? currentScopeArticles[currentScopeArticles.length - 1] 
       : undefined;
 
     try {
       const result = await fetchMoreArticlesFromFirestore({
-        category: activeCategory !== 'all' && activeCategory !== 'paper_edition' ? activeCategory : undefined,
-        lastPublishedAt: oldest,
-        limitCount: 30,
+        category: !isAll ? activeCategory : undefined,
+        lastArticleId: lastArticle?.id,
+        lastPublishedAt: lastArticle?.publishedAt,
+        limitCount: 80,
       });
 
-      if (result.articles.length > 0) {
+      if (result.articles && result.articles.length > 0) {
         const existingIdSet = new Set(articles.map((a) => a.id));
         const newUnique = result.articles.filter((a) => !existingIdSet.has(a.id));
+        
+        const nextTotal = articles.length + newUnique.length;
+        console.log(`[LOAD MORE] fetched: ${newUnique.length}, total: ${nextTotal}`);
+
         if (newUnique.length > 0) {
           onUpdateArticles([...articles, ...newUnique]);
         }
-      }
 
-      setHasMoreByCategory((prev) => ({
-        ...prev,
-        [activeCategory]: result.hasMore && result.articles.length > 0,
-      }));
+        const stillHasMore = result.hasMore && newUnique.length > 0;
+        setHasMoreByCategory((prev) => ({
+          ...prev,
+          [activeCategory]: stillHasMore,
+        }));
+      } else {
+        console.log(`[LOAD MORE] fetched: 0, total: ${articles.length}`);
+        setHasMoreByCategory((prev) => ({
+          ...prev,
+          [activeCategory]: false,
+        }));
+      }
     } catch (err) {
-      console.error('Failed to load more category articles:', err);
+      console.error('[LOAD MORE] Failed to load more articles from Firestore:', err);
     } finally {
       setIsLoadingMore(false);
     }
   };
-
-  const isCurrentCategoryHasMore = hasMoreByCategory[activeCategory] !== false;
 
 
 
@@ -560,6 +573,34 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
                   maxItems={4}
                   onViewMore={() => handleSelectCategory('global_news')}
                 />
+
+                {/* Main Screen Load More Pagination Button */}
+                <div className="mt-8 mb-4 text-center">
+                  {isCurrentCategoryHasMore ? (
+                    <button
+                      id="load-more-main-articles-btn"
+                      onClick={handleLoadMoreArticles}
+                      disabled={isLoadingMore}
+                      className="px-8 py-3.5 bg-white hover:bg-stone-50 text-slate-800 border border-stone-300 rounded-xl font-serif-kr font-bold text-xs shadow-xs hover:shadow-sm transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <span className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
+                          <span>기사 불러오는 중...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>이전 기사 더 불러오기</span>
+                          <span className="text-[10px] text-slate-400 font-sans">(+80건)</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <p className="text-xs text-slate-400 font-serif-kr py-2">
+                      — 마지막 기사입니다 (Firestore 전체 로드 완료) —
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Right Column (4 Cols): Sidebar Widgets (Sticky on scroll) */}
@@ -610,7 +651,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
               onSelectArticle={handleOpenArticle}
               bookmarkedIds={bookmarkedIds}
               onToggleBookmark={handleToggleBookmark}
-              onLoadMore={handleLoadMoreCategoryArticles}
+              onLoadMore={handleLoadMoreArticles}
               hasMore={isCurrentCategoryHasMore}
               isLoadingMore={isLoadingMore}
             />
