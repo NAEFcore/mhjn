@@ -908,7 +908,7 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
                     </span>
                     <span className="text-slate-600">|</span>
                     <span className="text-slate-400 text-[11px]">
-                      {currentArticle?.reporter.name} 기자
+                      {currentArticle?.reporter?.name || '편집국'} 기자
                     </span>
                   </div>
 
@@ -1353,7 +1353,7 @@ export const KcjRadioPage: React.FC<KcjRadioPageProps> = ({
 
                           <div className="flex items-center justify-between pt-1">
                             <span className="text-[10px] text-slate-400 truncate">
-                              {art.reporter.name} 기자
+                              {art.reporter?.name || '편집국'} 기자
                             </span>
 
                             {/* Listen Button */}

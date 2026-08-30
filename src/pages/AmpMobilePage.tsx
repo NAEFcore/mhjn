@@ -141,7 +141,7 @@ export const AmpMobilePage: React.FC<AmpMobilePageProps> = ({
                 </p>
               )}
               <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-200 font-mono">
-                <span>기자: {selectedArticle.reporter.name}</span>
+                <span>기자: {selectedArticle.reporter?.name || '편집국'}</span>
                 <span>{selectedArticle.publishedAt}</span>
               </div>
             </div>
@@ -194,8 +194,8 @@ export const AmpMobilePage: React.FC<AmpMobilePageProps> = ({
                     {topArticle.summary}
                   </p>
                   <div className="pt-1.5 flex items-center justify-between text-[10px] text-slate-400">
-                    <span>{topArticle.reporter.name} 기자</span>
-                    <span>조회 {topArticle.views.toLocaleString()}</span>
+                    <span>{topArticle.reporter?.name || '편집국'} 기자</span>
+                    <span>조회 {(topArticle.views ?? 0).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -249,7 +249,7 @@ export const AmpMobilePage: React.FC<AmpMobilePageProps> = ({
                       {art.title}
                     </h4>
                     <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
-                      <span>{art.reporter.name}</span>
+                      <span>{art.reporter?.name || '편집국'}</span>
                       <span>•</span>
                       <span>{art.publishedAt}</span>
                     </p>

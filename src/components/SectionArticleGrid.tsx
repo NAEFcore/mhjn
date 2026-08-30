@@ -136,7 +136,7 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
                   <div className="flex items-center gap-2 text-xs text-gray-400 mb-1.5">
                     <span className="text-[#0051a8] font-bold">{article.subCategory || article.categoryLabel}</span>
                     <span>·</span>
-                    <span>{article.reporter.name} 기자</span>
+                    <span>{article.reporter?.name || '편집국'} 기자</span>
                   </div>
 
                   <h3 className="text-base font-bold text-gray-900 group-hover:text-[#0051a8] font-headline line-clamp-2 leading-snug transition-colors mb-2">
@@ -149,7 +149,7 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
 
                   {/* Tags */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {article.tags.slice(0, 3).map((tag, idx) => (
+                    {(Array.isArray(article.tags) ? article.tags : []).slice(0, 3).map((tag, idx) => (
                       <span
                         key={idx}
                         className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium"
@@ -165,7 +165,7 @@ export const SectionArticleGrid: React.FC<SectionArticleGridProps> = ({
               <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3 text-gray-400" />
-                  {article.publishedAt.split(' ')[0]}
+                  {article.publishedAt?.split(' ')[0] || article.publishedAt}
                 </span>
 
                 <div className="flex items-center gap-3">

@@ -253,8 +253,8 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
   const [userReaction, setUserReaction] = useState<ReactionType | null>(article.userReaction || null);
 
   // Reporter Subscribe & Cheer
-  const [isReporterSubscribed, setIsReporterSubscribed] = useState(article.reporter.isSubscribed || false);
-  const [cheerCount, setCheerCount] = useState(article.reporter.cheerCount);
+  const [isReporterSubscribed, setIsReporterSubscribed] = useState(article.reporter?.isSubscribed || false);
+  const [cheerCount, setCheerCount] = useState(article.reporter?.cheerCount ?? 40);
   const [hasCheered, setHasCheered] = useState(false);
 
   // Comments State
@@ -451,10 +451,11 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
   const handleToggleSubscribeReporter = () => {
     const next = !isReporterSubscribed;
     setIsReporterSubscribed(next);
+    const repName = article.reporter?.name || '편집국';
     setToastMessage(
       next 
-        ? (isEn ? `Subscribed to ${article.reporter.name}` : `${article.reporter.name} 기자 구독을 시작했습니다.`)
-        : (isEn ? `Unsubscribed from ${article.reporter.name}` : `${article.reporter.name} 기자 구독을 해제했습니다.`)
+        ? (isEn ? `Subscribed to ${repName}` : `${repName} 기자 구독을 시작했습니다.`)
+        : (isEn ? `Unsubscribed from ${repName}` : `${repName} 기자 구독을 해제했습니다.`)
     );
     setTimeout(() => setToastMessage(null), 3000);
   };
@@ -517,7 +518,7 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
 
   // Related Articles
   const relatedArticles = allArticles
-    .filter(a => a.id !== article.id && (a.category === article.category || a.reporter.id === article.reporter.id))
+    .filter(a => a.id !== article.id && (a.category === article.category || (a.reporter?.id && article.reporter?.id && a.reporter.id === article.reporter.id)))
     .slice(0, 4);
 
   return (
@@ -700,22 +701,22 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
               itemType="https://schema.org/Person"
             >
               <img
-                src={article.reporter.avatar}
-                alt={article.reporter.name}
+                src={article.reporter?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'}
+                alt={article.reporter?.name || '기자'}
                 referrerPolicy="no-referrer"
                 className="w-10 h-10 rounded-full object-cover border border-gray-300"
               />
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-slate-900 text-sm font-serif-kr" itemProp="name">
-                    {article.reporter.name}
+                    {article.reporter?.name || '편집국'}
                   </span>
                   <span className="text-slate-500 font-serif-kr text-xs" itemProp="jobTitle">
-                    {article.reporter.title}
+                    {article.reporter?.title || '기자'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  {article.reporter.department} · {article.reporter.email}
+                  {article.reporter?.department || '문화부'} · {article.reporter?.email || 'news@kculturejournal.com'}
                 </p>
               </div>
             </div>
@@ -1045,25 +1046,25 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
         <div className="bg-[#f2efe9] border border-[#d8d3cb] rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 text-center sm:text-left">
             <img
-              src={article.reporter.avatar}
-              alt={article.reporter.name}
+              src={article.reporter?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'}
+              alt={article.reporter?.name || '기자'}
               referrerPolicy="no-referrer"
               className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-xs"
             />
             <div className="space-y-1">
               <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <h4 className="font-serif-kr font-bold text-slate-900 text-base">
-                  {article.reporter.name} 기자
+                  {article.reporter?.name || '편집국'} 기자
                 </h4>
                 <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] rounded-sm font-serif-kr font-bold">
-                  {article.reporter.department}
+                  {article.reporter?.department || '문화부'}
                 </span>
               </div>
               <p className="text-xs text-slate-600 font-serif-kr">
-                {article.reporter.bio}
+                {article.reporter?.bio || '한국문화저널 보도데스크'}
               </p>
               <p className="text-[11px] text-slate-400 font-mono">
-                {article.reporter.email} · 구독자 {article.reporter.subscriberCount.toLocaleString()}명
+                {article.reporter?.email || 'news@kculturejournal.com'} · 구독자 {(article.reporter?.subscriberCount ?? 150).toLocaleString()}명
               </p>
             </div>
           </div>
@@ -1328,7 +1329,7 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
                       {(isEn && rel.titleEn) ? rel.titleEn : rel.title}
                     </h4>
                     <p className="text-[10px] text-slate-400 mt-1">
-                      {rel.reporter.name} 기자 · {rel.publishedAt}
+                      {rel.reporter?.name || '편집국'} 기자 · {rel.publishedAt}
                     </p>
                   </div>
                 </a>

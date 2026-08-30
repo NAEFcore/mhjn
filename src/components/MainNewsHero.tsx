@@ -83,12 +83,12 @@ export const MainNewsHero: React.FC<MainNewsHeroProps> = ({
           <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-100">
             <div className="flex items-center gap-2">
               <img
-                src={topArticle.reporter.avatar}
-                alt={topArticle.reporter.name}
+                src={topArticle.reporter?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'}
+                alt={topArticle.reporter?.name || '기자'}
                 referrerPolicy="no-referrer"
                 className="w-6 h-6 rounded-full object-cover border border-gray-200"
               />
-              <span className="font-semibold text-gray-800">{topArticle.reporter.name} 기자</span>
+              <span className="font-semibold text-gray-800">{topArticle.reporter?.name || '편집국'} 기자</span>
               <span className="text-gray-400">·</span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3 text-gray-400" />
@@ -99,11 +99,11 @@ export const MainNewsHero: React.FC<MainNewsHeroProps> = ({
             <div className="flex items-center gap-3 font-medium">
               <span className="flex items-center gap-1 text-gray-600">
                 <Eye className="w-3.5 h-3.5" />
-                {topArticle.views.toLocaleString()}
+                {(topArticle.views ?? 0).toLocaleString()}
               </span>
               <span className="flex items-center gap-1 text-blue-600">
                 <MessageSquare className="w-3.5 h-3.5" />
-                {topArticle.commentsCount}
+                {topArticle.commentsCount ?? 0}
               </span>
             </div>
           </div>
@@ -136,7 +136,7 @@ export const MainNewsHero: React.FC<MainNewsHeroProps> = ({
                     {art.categoryLabel}
                   </span>
                   <span className="text-gray-300">·</span>
-                  <span className="text-[11px] text-gray-400">{art.reporter.name} 기자</span>
+                  <span className="text-[11px] text-gray-400">{art.reporter?.name || '편집국'} 기자</span>
                 </div>
 
                 <h4 className="text-sm font-bold text-gray-900 group-hover:text-[#0051a8] line-clamp-2 leading-snug font-headline transition-colors">
@@ -144,9 +144,9 @@ export const MainNewsHero: React.FC<MainNewsHeroProps> = ({
                 </h4>
 
                 <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-400">
-                  <span>{art.publishedAt.split(' ')[1] || art.publishedAt}</span>
+                  <span>{art.publishedAt?.split(' ')[1] || art.publishedAt}</span>
                   <span>·</span>
-                  <span className="text-gray-500">댓글 {art.commentsCount}</span>
+                  <span className="text-gray-500">댓글 {art.commentsCount ?? 0}</span>
                 </div>
               </div>
 

@@ -73,7 +73,7 @@ export const BookmarksModal: React.FC<BookmarksModalProps> = ({
                     {art.title}
                   </h3>
                   <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                    <span>{art.reporter.name} 기자</span>
+                    <span>{art.reporter?.name || '편집국'} 기자</span>
                     <span>·</span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />

@@ -66,8 +66,8 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({
   const [userReaction, setUserReaction] = useState<ReactionType | null>(article.userReaction || null);
 
   // Reporter Subscribe & Cheer
-  const [isReporterSubscribed, setIsReporterSubscribed] = useState(article.reporter.isSubscribed || false);
-  const [cheerCount, setCheerCount] = useState(article.reporter.cheerCount);
+  const [isReporterSubscribed, setIsReporterSubscribed] = useState(article.reporter?.isSubscribed || false);
+  const [cheerCount, setCheerCount] = useState(article.reporter?.cheerCount ?? 40);
   const [hasCheered, setHasCheered] = useState(false);
 
   // Comments State
@@ -190,7 +190,8 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({
     if (!hasCheered) {
       setCheerCount((prev) => prev + 1);
       setHasCheered(true);
-      showToast(`${article.reporter.name} 기자에게 응원을 보냈습니다! 👏`);
+      const repName = article.reporter?.name || '편집국';
+      showToast(`${repName} 기자에게 응원을 보냈습니다! 👏`);
     }
   };
 
@@ -198,10 +199,11 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({
   const handleReporterSubscribe = () => {
     const next = !isReporterSubscribed;
     setIsReporterSubscribed(next);
+    const repName = article.reporter?.name || '편집국';
     showToast(
       next
-        ? `${article.reporter.name} 기자를 구독했습니다. 기자의 최신 기사를 모아볼 수 있습니다.`
-        : `${article.reporter.name} 기자 구독을 취소했습니다.`
+        ? `${repName} 기자를 구독했습니다. 기자의 최신 기사를 모아볼 수 있습니다.`
+        : `${repName} 기자 구독을 취소했습니다.`
     );
   };
 
@@ -351,14 +353,14 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({
             {/* Reporter Profile */}
             <div className="flex items-center gap-3">
               <img
-                src={article.reporter.avatar}
-                alt={article.reporter.name}
+                src={article.reporter?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'}
+                alt={article.reporter?.name || '기자'}
                 referrerPolicy="no-referrer"
                 className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs"
               />
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-gray-900">{article.reporter.name} 기자</span>
+                  <span className="text-sm font-bold text-gray-900">{article.reporter?.name || '편집국'} 기자</span>
                   <button
                     onClick={handleReporterSubscribe}
                     className={`px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 transition-all ${
@@ -380,7 +382,7 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">{article.reporter.department} · {article.reporter.email}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{article.reporter?.department || '문화부'} · {article.reporter?.email || 'news@kculturejournal.com'}</p>
               </div>
             </div>
 

@@ -22,6 +22,15 @@ if (!fs.existsSync(DATA_DIR)) {
 
 const ADS_FILE = path.join(DATA_DIR, 'ads.json');
 const POPUPS_FILE = path.join(DATA_DIR, 'popups.json');
+const ARTICLES_FILE = path.join(DATA_DIR, 'articles.json');
+
+const CONFIG_FILE = path.join(process.cwd(), 'firebase-applet-config.json');
+let firebaseConfig: any = null;
+if (fs.existsSync(CONFIG_FILE)) {
+  try {
+    firebaseConfig = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+  } catch (e) {}
+}
 
 // Helper for safe JSON file reading and writing
 function readJsonFile<T>(filePath: string, fallback: T): T {
@@ -41,6 +50,104 @@ function writeJsonFile<T>(filePath: string, data: T): void {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
     console.error(`Error writing ${filePath}:`, err);
+  }
+}
+
+// Initialize Persistent Stores
+function normalizeServerArticle(art: any): any {
+  if (!art || typeof art !== 'object') return art;
+  return {
+    ...art,
+    views: typeof art.views === 'number' ? art.views : 0,
+    shares: typeof art.shares === 'number' ? art.shares : 0,
+    likes: typeof art.likes === 'number' ? art.likes : 0,
+    commentsCount: typeof art.commentsCount === 'number' ? art.commentsCount : 0,
+    tags: Array.isArray(art.tags) ? art.tags : ['문화·예술'],
+    reporter: {
+      id: art.reporter?.id || 'rep-editor',
+      name: art.reporter?.name || '편집국',
+      title: art.reporter?.title || '기자',
+      department: art.reporter?.department || '문화부',
+      email: art.reporter?.email || 'news@kculturejournal.com',
+      avatar: art.reporter?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+      bio: art.reporter?.bio || '한국문화저널 편집국 보도데스크',
+      subscriberCount: typeof art.reporter?.subscriberCount === 'number' ? art.reporter.subscriberCount : 150,
+      cheerCount: typeof art.reporter?.cheerCount === 'number' ? art.reporter.cheerCount : 40,
+      isSubscribed: Boolean(art.reporter?.isSubscribed),
+    },
+  };
+}
+
+let serverArticles: any[] = readJsonFile(ARTICLES_FILE, INITIAL_ARTICLES).map(normalizeServerArticle);
+
+// Helper to convert JS object to Firestore REST fields format
+function toFirestoreFields(obj: Record<string, any>): Record<string, any> {
+  const fields: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    if (typeof v === 'string') {
+      fields[k] = { stringValue: v };
+    } else if (typeof v === 'number') {
+      fields[k] = Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+    } else if (typeof v === 'boolean') {
+      fields[k] = { booleanValue: v };
+    } else if (Array.isArray(v)) {
+      fields[k] = { arrayValue: { values: v.map((item: any) => {
+        if (typeof item === 'string') return { stringValue: item };
+        if (typeof item === 'number') return { integerValue: String(item) };
+        if (typeof item === 'object' && item !== null) return { mapValue: { fields: toFirestoreFields(item) } };
+        return { stringValue: String(item) };
+      }) } };
+    } else if (typeof v === 'object') {
+      fields[k] = { mapValue: { fields: toFirestoreFields(v) } };
+    }
+  }
+  return fields;
+}
+
+// Asynchronously sync article to Firestore REST API
+async function syncArticleToFirestoreRest(article: any) {
+  if (!firebaseConfig?.projectId || !firebaseConfig?.apiKey) return;
+  const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+  const docId = article.id || `art-${Date.now()}`;
+  const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${dbId}/documents/articles/${encodeURIComponent(docId)}?key=${firebaseConfig.apiKey}`;
+  
+  try {
+    const fields = toFirestoreFields({
+      articleId: docId,
+      koreanTitle: article.title || '',
+      koreanBody: article.content || article.summary || '',
+      englishTitle: article.titleEn || '',
+      englishBody: article.contentEn || '',
+      publishedAt: article.publishedAt || new Date().toISOString(),
+      updatedAt: article.updatedAt || new Date().toISOString(),
+      category: article.category || 'culture_art',
+      categoryLabel: article.categoryLabel || '문화·예술',
+      status: article.status || 'PUBLISHED',
+      imageUrl: article.imageUrl || '',
+      views: article.views || 0,
+      tags: Array.isArray(article.tags) ? article.tags : [],
+      reporter: article.reporter || { name: '편집국' },
+    });
+
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+  } catch (err) {
+    console.warn('[SERVER FIRESTORE REST SYNC NOTICE]', err);
+  }
+}
+
+async function deleteArticleFromFirestoreRest(articleId: string) {
+  if (!firebaseConfig?.projectId || !firebaseConfig?.apiKey) return;
+  const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+  const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${dbId}/documents/articles/${encodeURIComponent(articleId)}?key=${firebaseConfig.apiKey}`;
+  try {
+    await fetch(url, { method: 'DELETE' });
+  } catch (err) {
+    console.warn('[SERVER FIRESTORE REST DELETE NOTICE]', err);
   }
 }
 
@@ -113,6 +220,126 @@ function getGeminiClient(): GoogleGenAI | null {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// ==========================================
+// UNIFIED ARTICLES API (Single Source of Truth)
+// ==========================================
+
+// Get all articles (Unified single source of truth across all browsers)
+app.get('/api/articles', (req, res) => {
+  res.json({
+    success: true,
+    count: serverArticles.length,
+    firstId: serverArticles[0]?.id || null,
+    firstTitle: serverArticles[0]?.title || null,
+    articles: serverArticles,
+  });
+});
+
+// Get single article by ID
+app.get('/api/articles/:id', (req, res) => {
+  const art = serverArticles.find(a => a.id === req.params.id);
+  if (!art) {
+    return res.status(404).json({ error: 'Article not found' });
+  }
+  res.json({ success: true, article: art });
+});
+
+// Create or update an article
+app.post('/api/articles', (req, res) => {
+  try {
+    const rawArticle = req.body;
+    if (!rawArticle || !rawArticle.id) {
+      return res.status(400).json({ error: 'Invalid article data: ID is required' });
+    }
+
+    const article = normalizeServerArticle(rawArticle);
+    const existingIndex = serverArticles.findIndex(a => a.id === article.id);
+    if (existingIndex >= 0) {
+      serverArticles[existingIndex] = { ...serverArticles[existingIndex], ...article };
+    } else {
+      serverArticles.unshift(article);
+    }
+
+    writeJsonFile(ARTICLES_FILE, serverArticles);
+    syncArticleToFirestoreRest(article).catch(() => {});
+
+    console.log('[SERVER ARTICLE SAVED]', {
+      id: article.id,
+      title: article.title,
+      totalCount: serverArticles.length,
+      firstId: serverArticles[0]?.id,
+    });
+
+    res.json({
+      success: true,
+      count: serverArticles.length,
+      firstId: serverArticles[0]?.id,
+      article,
+    });
+  } catch (err: any) {
+    console.error('Error saving article to server store:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete article
+app.delete('/api/articles/:id', (req, res) => {
+  try {
+    const articleId = req.params.id;
+    serverArticles = serverArticles.filter(a => a.id !== articleId);
+    writeJsonFile(ARTICLES_FILE, serverArticles);
+    deleteArticleFromFirestoreRest(articleId).catch(() => {});
+
+    console.log('[SERVER ARTICLE DELETED]', {
+      id: articleId,
+      remainingCount: serverArticles.length,
+      firstId: serverArticles[0]?.id,
+    });
+
+    res.json({ success: true, count: serverArticles.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Batch save articles
+app.post('/api/articles/batch', (req, res) => {
+  try {
+    const { articles: incomingBatch } = req.body;
+    if (!Array.isArray(incomingBatch)) {
+      return res.status(400).json({ error: 'Articles array required' });
+    }
+
+    const map = new Map<string, any>();
+    // First keep incoming
+    incomingBatch.forEach(art => {
+      if (art && art.id) map.set(art.id, normalizeServerArticle(art));
+    });
+    // Add existing if not present
+    serverArticles.forEach(art => {
+      if (art && art.id && !map.has(art.id)) {
+        map.set(art.id, normalizeServerArticle(art));
+      }
+    });
+
+    serverArticles = Array.from(map.values());
+    writeJsonFile(ARTICLES_FILE, serverArticles);
+
+    // Sync to Firestore REST asynchronously
+    incomingBatch.slice(0, 50).forEach(art => {
+      syncArticleToFirestoreRest(art).catch(() => {});
+    });
+
+    res.json({
+      success: true,
+      count: serverArticles.length,
+      firstId: serverArticles[0]?.id,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // AI Article 3-Line Summary API

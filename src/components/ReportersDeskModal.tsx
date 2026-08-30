@@ -86,12 +86,12 @@ export const ReportersDeskModal: React.FC<ReportersDeskModalProps> = ({
 
                 {/* Bottom Actions */}
                 <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs">
-                  <div className="flex items-center gap-3 text-gray-500 font-medium">
-                    <span>구독자 {((reporter.subscriberCount + (isSubscribed ? 1 : 0)) / 10000).toFixed(1)}만</span>
+                    <div className="flex items-center gap-3 text-gray-500 font-medium">
+                    <span>구독자 {(((reporter.subscriberCount ?? 10000) + (isSubscribed ? 1 : 0)) / 10000).toFixed(1)}만</span>
                     <span>·</span>
                     <span className="flex items-center gap-1 text-red-600 font-semibold">
                       <Heart className="w-3 h-3 fill-current" />
-                      {reporter.cheerCount}
+                      {reporter.cheerCount ?? 40}
                     </span>
                   </div>
 

@@ -213,7 +213,27 @@ export function firestoreDocToArticle(docData: any, docId: string): Article {
     summaryEn: docData.summaryEn,
     content: koreanBody,
     contentEn: englishBody,
-    reporter: docData.reporter || {
+    reporter: typeof docData.reporter === 'object' && docData.reporter !== null ? {
+      id: docData.reporter.id || 'rep-editor',
+      name: docData.reporter.name || '편집국',
+      title: docData.reporter.title || '취재기자',
+      department: docData.reporter.department || '문화부',
+      email: docData.reporter.email || 'editor@kculturejournal.com',
+      avatar: docData.reporter.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+      bio: docData.reporter.bio || '한국문화저널 편집국 보도자료 데스크',
+      subscriberCount: typeof docData.reporter.subscriberCount === 'number' ? docData.reporter.subscriberCount : 150,
+      cheerCount: typeof docData.reporter.cheerCount === 'number' ? docData.reporter.cheerCount : 40,
+    } : typeof docData.reporter === 'string' && docData.reporter.trim() ? {
+      id: 'rep-custom',
+      name: docData.reporter.trim(),
+      title: '취재기자',
+      department: '문화부',
+      email: 'reporter@kculturejournal.com',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+      bio: '한국문화저널 보도데스크',
+      subscriberCount: 150,
+      cheerCount: 40,
+    } : {
       id: 'rep-editor',
       name: '편집국',
       title: '편집위원',
@@ -322,10 +342,28 @@ export function parseDateSafely(dateVal?: any): number {
 }
 
 /**
- * Fetch latest articles from Firestore with safe quota limit
+ * Fetch latest articles from Firestore / Server with safe quota limit
  */
 export async function fetchArticlesFromFirestore(limitCount: number = 80): Promise<Article[]> {
   try {
+    // 1. Fetch from unified server API single source of truth
+    const res = await fetch('/api/articles');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.articles) && data.articles.length > 0) {
+        return data.articles.sort((a: Article, b: Article) => {
+          const dateA = parseDateSafely(a.publishedAt);
+          const dateB = parseDateSafely(b.publishedAt);
+          return dateB - dateA;
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('API articles fetch fallback:', err);
+  }
+
+  try {
+    // 2. Direct Firestore SDK fetch fallback
     const articlesCol = collection(db, 'articles');
     const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
     const snapshot = await getDocs(q);
@@ -349,14 +387,23 @@ export async function fetchArticlesFromFirestore(limitCount: number = 80): Promi
 }
 
 /**
- * Fetch a single article by articleId from Firestore (Requirement: single-doc fetch with zero collection scans)
+ * Fetch a single article by articleId from Firestore & Server (Requirement: single-doc fetch with zero collection scans)
  */
 export async function fetchArticleByIdFromFirestore(articleId: string): Promise<Article | null> {
   if (!articleId) return null;
   const cleanId = String(articleId).trim();
 
+  // 1. Try fetching from server single source of truth
   try {
-    // 1. Direct document key lookup
+    const res = await fetch(`/api/articles/${encodeURIComponent(cleanId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.article) return data.article;
+    }
+  } catch {}
+
+  try {
+    // 2. Direct document key lookup in Firestore
     const docRef = doc(db, 'articles', cleanId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
@@ -460,9 +507,21 @@ export async function fetchAdjacentArticlesFromFirestore(
 }
 
 /**
- * Save / Update a single article strictly in Firestore articles collection
+ * Save / Update a single article strictly in Firestore articles collection & server single source of truth
  */
 export async function saveArticleToFirestore(article: Article): Promise<void> {
+  // 1. Save to Unified Server API
+  try {
+    await fetch('/api/articles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(article),
+    });
+  } catch (apiErr) {
+    console.warn('Server API save notice:', apiErr);
+  }
+
+  // 2. Save to Firestore SDK
   try {
     const docRef = doc(db, 'articles', article.id);
     const data = articleToFirestoreDoc(article);
@@ -473,9 +532,19 @@ export async function saveArticleToFirestore(article: Article): Promise<void> {
 }
 
 /**
- * Delete an article strictly from Firestore articles collection
+ * Delete an article strictly from Firestore articles collection & server store
  */
 export async function deleteArticleFromFirestore(articleId: string): Promise<void> {
+  // 1. Delete from Unified Server API
+  try {
+    await fetch(`/api/articles/${encodeURIComponent(articleId)}`, {
+      method: 'DELETE',
+    });
+  } catch (apiErr) {
+    console.warn('Server API delete notice:', apiErr);
+  }
+
+  // 2. Delete from Firestore SDK
   try {
     const docRef = doc(db, 'articles', articleId);
     await deleteDoc(docRef);
@@ -485,12 +554,23 @@ export async function deleteArticleFromFirestore(articleId: string): Promise<voi
 }
 
 /**
- * Batch save articles to Firestore in safe chunks (max 200 per batch)
+ * Batch save articles to Firestore in safe chunks (max 200 per batch) & server store
  */
 export async function saveArticlesBatchToFirestore(
   articles: Article[], 
   onProgress?: (processed: number, total: number) => void
 ): Promise<{ success: number; failed: number; errors: Array<{ articleId: string; error: string }> }> {
+  // 1. Batch sync to Unified Server API
+  try {
+    await fetch('/api/articles/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ articles }),
+    });
+  } catch (apiErr) {
+    console.warn('Server API batch save notice:', apiErr);
+  }
+
   const CHUNK_SIZE = 100;
   let successCount = 0;
   let failedCount = 0;
@@ -560,21 +640,51 @@ export let lastVisibleFirestoreDoc: QueryDocumentSnapshot<DocumentData> | null =
 export const categoryLastDocSnapshots: Record<string, QueryDocumentSnapshot<DocumentData> | null> = {};
 
 /**
- * Realtime subscriber for Firestore articles
- * Limits reads on initial app opening to the latest necessary articles (e.g. limit 80)
- * to save Firestore read quota while keeping all main news sections, rankings, and sub-news active.
+ * Realtime subscriber for Firestore articles & Unified Server Single Source of Truth
+ * Ensures Edge, Incognito, Chrome, and all browsers share 100% identical data.
  */
 export function subscribeToFirestoreArticles(
   onUpdate: (articles: Article[]) => void,
   onError?: (error: Error) => void,
   limitCount: number = 80
 ): () => void {
+  let isUnmounted = false;
+
+  // 1. Initial fast load from unified server single source of truth
+  const syncFromServer = async () => {
+    try {
+      const res = await fetch('/api/articles');
+      if (res.ok && !isUnmounted) {
+        const data = await res.json();
+        if (Array.isArray(data.articles) && data.articles.length > 0) {
+          const sorted = data.articles.sort((a: Article, b: Article) => {
+            const dateA = parseDateSafely(a.publishedAt);
+            const dateB = parseDateSafely(b.publishedAt);
+            return dateB - dateA;
+          });
+          onUpdate(sorted);
+        }
+      }
+    } catch (err) {
+      console.warn('[SYNC SERVER NOTICE]', err);
+    }
+  };
+
+  syncFromServer();
+
+  // 2. Periodic sync timer to ensure instant multi-browser cross-sync
+  const pollInterval = setInterval(() => {
+    if (!isUnmounted) {
+      syncFromServer();
+    }
+  }, 4000);
+
+  // 3. Firestore realtime snapshot listener
   const articlesCol = collection(db, 'articles');
   const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
   
-  return onSnapshot(q, (snapshot) => {
-    if (snapshot.empty) {
-      // Do NOT wipe out existing articles with empty array on empty snapshot
+  const unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+    if (snapshot.empty || isUnmounted) {
       return;
     }
 
@@ -612,6 +722,12 @@ export function subscribeToFirestoreArticles(
 
     if (onError) onError(err);
   });
+
+  return () => {
+    isUnmounted = true;
+    clearInterval(pollInterval);
+    unsubscribeFirestore();
+  };
 }
 
 /**
