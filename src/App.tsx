@@ -54,8 +54,8 @@ export default function App() {
   });
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  // Global State for Articles (backed by Firebase Cloud Firestore)
-  const [articles, setArticlesState] = useState<Article[]>(() => loadPersistedArticles());
+  // Global State for Articles (strictly backed by Firebase Cloud Firestore single source of truth)
+  const [articles, setArticlesState] = useState<Article[]>([]);
   const [reporters, setReportersState] = useState<Reporter[]>(() => loadPersistedReporters());
   const [events, setEventsState] = useState<CulturalEvent[]>(() => loadPersistedEvents());
   const [categories, setCategories] = useState<CategoryTab[]>(CATEGORY_TABS);

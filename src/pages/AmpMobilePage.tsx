@@ -29,7 +29,7 @@ export const AmpMobilePage: React.FC<AmpMobilePageProps> = ({
   onBackToStandard,
   onOpenPaperEdition,
 }) => {
-  const articles = articlesProp && articlesProp.length > 0 ? articlesProp : loadPersistedArticles();
+  const articles = articlesProp || [];
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
