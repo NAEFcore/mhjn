@@ -554,13 +554,11 @@ export const categoryLastDocSnapshots: Record<string, QueryDocumentSnapshot<Docu
  */
 export function subscribeToFirestoreArticles(
   onUpdate: (articles: Article[]) => void,
-  onError?: (error: Error) => void,
-  limitCount: number = 80
+  onError?: (error: Error) => void
 ): () => void {
   const articlesCol = collection(db, 'articles');
-  const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
   
-  return onSnapshot(q, (snapshot) => {
+  return onSnapshot(articlesCol, (snapshot) => {
     if (snapshot.empty) {
       // Do NOT wipe out existing articles with empty array on empty snapshot
       return;

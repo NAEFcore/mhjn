@@ -88,7 +88,23 @@ export default function App() {
           }
         }).catch(() => {});
 
-        // 1. Subscribe to Firestore articles in realtime
+        // 1. Immediate direct fetch to guarantee identical Firestore synchronization across all browsers
+        fetchArticlesFromFirestore().then((fetched) => {
+          if (fetched && fetched.length > 0) {
+            console.log('[FIRESTORE INITIAL FETCH]', {
+              count: fetched.length,
+              firstId: fetched[0]?.id,
+              firstTitle: fetched[0]?.title,
+              firstPublishedAt: fetched[0]?.publishedAt,
+            });
+            setArticlesState(fetched);
+            savePersistedArticles(fetched);
+          }
+        }).catch((err) => {
+          console.warn('Initial Firestore direct fetch notice:', err);
+        });
+
+        // 2. Subscribe to Firestore articles in realtime
         unsubscribe = subscribeToFirestoreArticles((incomingArticles) => {
           if (incomingArticles && incomingArticles.length > 0) {
             console.log('[FINAL APP STATE]', {
