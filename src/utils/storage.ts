@@ -145,15 +145,6 @@ export function savePersistedArticles(articles: Article[]): void {
       } catch {}
     }
   }
-
-  // 3. Background server upsert sync
-  try {
-    fetch('/api/articles/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ articles }),
-    }).catch(() => {});
-  } catch {}
 }
 
 // Load saved ad settings

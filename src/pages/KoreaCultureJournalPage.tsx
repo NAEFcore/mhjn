@@ -112,25 +112,9 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
             }
             return;
           }
-
-          // Fallback to server API if not found in Firestore yet
-          const res = await fetch(`/api/articles/${articleId}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.article) {
-              setSelectedArticle(data.article);
-              setArticleNotFound(false);
-              if (!articles.some(a => a.id === data.article.id)) {
-                onUpdateArticles([data.article, ...articles]);
-              }
-            } else {
-              setArticleNotFound(true);
-            }
-          } else {
-            setArticleNotFound(true);
-          }
+          setArticleNotFound(true);
         } catch (err) {
-          console.error('Failed to load article from Firestore/API:', err);
+          console.error('Failed to load article from Firestore:', err);
           setArticleNotFound(true);
         } finally {
           setIsLoadingArticle(false);
@@ -167,17 +151,7 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
             console.warn('Popstate firestore fetch error:', e);
           }
 
-          fetch(`/api/articles/${articleId}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.article) {
-                setSelectedArticle(data.article);
-                setArticleNotFound(false);
-              } else {
-                setArticleNotFound(true);
-              }
-            })
-            .catch(() => setArticleNotFound(true));
+          setArticleNotFound(true);
         }
       } else if (path === '/un-sdg') {
         setActiveCategory('un_sdg');

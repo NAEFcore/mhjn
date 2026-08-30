@@ -317,12 +317,11 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
       return;
     }
 
-    // Delete chosen ones from Firestore and backend API
+    // Delete chosen ones from Firestore
     for (const id of selectedArticleIds) {
       deleteArticleFromFirestore(id).catch(err => {
         console.error(`Failed to delete article ${id} from Firestore:`, err);
       });
-      fetch(`/api/articles/${id}`, { method: 'DELETE' }).catch(() => {});
     }
 
     const updated = articles.filter(a => !selectedArticleIds.includes(a.id));
@@ -659,7 +658,6 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
     deleteArticleFromFirestore(articleId).catch(err => {
       console.error('Failed to delete from Firestore:', err);
     });
-    fetch(`/api/articles/${articleId}`, { method: 'DELETE' }).catch(() => {});
     onUpdateArticles(articles.filter(a => a.id !== articleId));
   };
 

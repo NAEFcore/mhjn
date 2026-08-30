@@ -114,24 +114,7 @@ export default function App() {
             });
           }
         }, (err) => {
-          console.warn('Firestore subscription notice (using local cache & backend server fallback):', err?.message || err);
-          // If Firestore quota limit exceeded or offline, load full backend server articles for all browsers
-          fetch('/api/articles')
-            .then(res => res.json())
-            .then(data => {
-              if (Array.isArray(data.articles) && data.articles.length > 0) {
-                console.log('[FINAL APP STATE]', {
-                  source: 'DIRECT_API_FALLBACK',
-                  count: data.articles.length,
-                  firstId: data.articles[0]?.id,
-                  firstTitle: data.articles[0]?.title,
-                  firstPublishedAt: data.articles[0]?.publishedAt,
-                });
-                setArticlesState(data.articles);
-                savePersistedArticles(data.articles);
-              }
-            })
-            .catch(() => {});
+          console.warn('Firestore subscription notice (using local cache):', err?.message || err);
         });
       } catch (err) {
         console.warn('Firestore initialization notice (using safe local cache):', err);
@@ -168,13 +151,6 @@ export default function App() {
     setArticlesState((prev) => {
       const next = typeof newArticles === 'function' ? newArticles(prev) : newArticles;
       savePersistedArticles(next);
-      if (Array.isArray(next) && next.length > 0) {
-        fetch('/api/articles/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ articles: next }),
-        }).catch(() => {});
-      }
       return next;
     });
   };

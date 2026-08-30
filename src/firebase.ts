@@ -388,17 +388,6 @@ export async function fetchArticleByIdFromFirestore(articleId: string): Promise<
       }
     }
 
-    // 6. Final fallback to Express server store
-    try {
-      const res = await fetch(`/api/articles/${encodeURIComponent(cleanId)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.article) {
-          return data.article;
-        }
-      }
-    } catch {}
-
     return null;
   } catch (error) {
     console.error(`Failed to fetch article ${cleanId} from Firestore:`, error);
@@ -459,36 +448,22 @@ export async function fetchAdjacentArticlesFromFirestore(
 }
 
 /**
- * Save / Update a single article in Firestore & Backend Sync
+ * Save / Update a single article strictly in Firestore articles collection
  */
 export async function saveArticleToFirestore(article: Article): Promise<void> {
-  // Sync to Express backend store in parallel
-  try {
-    fetch('/api/articles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(article),
-    }).catch(() => {});
-  } catch {}
-
   try {
     const docRef = doc(db, 'articles', article.id);
     const data = articleToFirestoreDoc(article);
     await setDoc(docRef, data, { merge: true });
   } catch (error: any) {
-    console.warn(`Firestore save notice for ${article.id} (persisted to server backend):`, error?.message || error);
+    console.warn(`Firestore save notice for ${article.id}:`, error?.message || error);
   }
 }
 
 /**
- * Delete an article from Firestore & Backend Sync
+ * Delete an article strictly from Firestore articles collection
  */
 export async function deleteArticleFromFirestore(articleId: string): Promise<void> {
-  // Sync deletion to Express backend
-  try {
-    fetch(`/api/articles/${articleId}`, { method: 'DELETE' }).catch(() => {});
-  } catch {}
-
   try {
     const docRef = doc(db, 'articles', articleId);
     await deleteDoc(docRef);
@@ -624,33 +599,6 @@ export function subscribeToFirestoreArticles(
     });
 
     if (onError) onError(err);
-    
-    // Automatically fall back to backend server if Firestore listener hits quota limit
-    try {
-      const res = await fetch('/api/articles');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.articles) && data.articles.length > 0) {
-          const serverSorted = [...data.articles].sort((a, b) => {
-            const dateA = parseDateSafely(a.publishedAt);
-            const dateB = parseDateSafely(b.publishedAt);
-            return dateB - dateA;
-          });
-
-          console.log('[SERVER FALLBACK]', {
-            executed: true,
-            count: serverSorted.length,
-            firstTitle: serverSorted[0]?.title,
-            firstId: serverSorted[0]?.id,
-            firstPublishedAt: serverSorted[0]?.publishedAt,
-          });
-
-          onUpdate(serverSorted);
-        }
-      }
-    } catch (fetchErr) {
-      console.warn('[SERVER FALLBACK] Failed to fetch /api/articles:', fetchErr);
-    }
   });
 }
 
