@@ -98,20 +98,9 @@ export default function App() {
               firstTitle: incomingArticles[0]?.title,
               firstPublishedAt: incomingArticles[0]?.publishedAt,
             });
-            setArticlesState((prev) => {
-              // If user has expanded articles beyond initial 80 via pagination, merge incoming updates cleanly
-              if (prev.length > incomingArticles.length) {
-                const incomingIdSet = new Set(incomingArticles.map((a) => a.id));
-                const olderArticles = prev.filter((a) => !incomingIdSet.has(a.id));
-                const merged = [...incomingArticles, ...olderArticles].sort(
-                  (a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt)
-                );
-                savePersistedArticles(merged);
-                return merged;
-              }
-              savePersistedArticles(incomingArticles);
-              return incomingArticles;
-            });
+            // Completely replace articles state with Firestore data without merging old cache
+            setArticlesState(incomingArticles);
+            savePersistedArticles(incomingArticles);
           }
         }, (err) => {
           console.warn('Firestore subscription notice (using local cache):', err?.message || err);
