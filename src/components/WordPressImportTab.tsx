@@ -244,6 +244,13 @@ export const WordPressImportTab: React.FC<WordPressImportTabProps> = ({
         setProgress(currentProgress);
       });
 
+      // Refresh real Firestore count from server
+      getFirestoreArticleTotalCount()
+        .then((count) => {
+          if (count > 0) setLiveTotalFirestoreCount(count);
+        })
+        .catch(() => {});
+
       if (onArticlesImported) {
         onArticlesImported();
       }

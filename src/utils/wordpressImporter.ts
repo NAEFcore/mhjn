@@ -460,11 +460,11 @@ export function wpItemToArticle(item: WordPressParsedItem): Article {
 }
 
 /**
- * Execute Batch Import of WordPress items to Firestore and Backend Server Store
+ * Execute Batch Import of WordPress items strictly to Firestore articles collection
+ * - Single unified storage path: WordPress XML -> Firestore articles -> News App
  * - Deduplicates against existing Firestore articles by articleId
- * - Saves to Firestore via writeBatch
- * - Simultaneously persists to Backend Store (/api/articles/sync)
- * - Reports live progress
+ * - Saves directly to Firestore via writeBatch in chunks
+ * - Reports live progress for 50-test or full 2,000+ items
  */
 export async function executeWordPressImportToFirestore(
   wpItems: WordPressParsedItem[],
@@ -478,7 +478,7 @@ export async function executeWordPressImportToFirestore(
   let failed = 0;
   const errors: Array<{ title: string; articleId: string; error: string; item?: WordPressParsedItem }> = [];
 
-  // Step 1: Fetch existing article IDs from Firestore / Server for deduplication
+  // Step 1: Fetch existing article IDs from Firestore for deduplication
   const existingArticles = await fetchArticlesFromFirestore();
   const existingIdSet = new Set<string>();
 
@@ -501,7 +501,7 @@ export async function executeWordPressImportToFirestore(
 
   onProgress({ ...progressState });
 
-  // Step 2: Chunk-based batch upload
+  // Step 2: Chunk-based batch upload strictly to Firestore
   for (let i = 0; i < total; i += chunkSize) {
     const chunk = wpItems.slice(i, i + chunkSize);
     const toUpload: { article: Article; item: WordPressParsedItem }[] = [];
@@ -524,20 +524,7 @@ export async function executeWordPressImportToFirestore(
     }
 
     if (toUpload.length > 0) {
-      const articlesToSave = toUpload.map(t => t.article);
-
-      // 1. Sync to backend persistent store /api/articles/sync
-      try {
-        await fetch('/api/articles/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ articles: articlesToSave }),
-        });
-      } catch (syncErr) {
-        console.warn('Backend store sync notice:', syncErr);
-      }
-
-      // 2. Commit to Firestore
+      // Commit directly to Firestore articles collection (single source of truth)
       try {
         const batch = writeBatch(db);
         toUpload.forEach(({ article }) => {
@@ -549,15 +536,21 @@ export async function executeWordPressImportToFirestore(
         success += toUpload.length;
         processed += toUpload.length;
       } catch (err: any) {
-        console.warn(`Firestore batch write notice at chunk ${i} (fallback to individual writes):`, err?.message || err);
-        // Fallback: commit individually to save as many as possible
+        console.warn(`Firestore batch write notice at chunk ${i} (falling back to individual setDoc):`, err?.message || err);
+        // Fallback: commit individually to Firestore
         for (const { article, item } of toUpload) {
           try {
             await saveArticleToFirestore(article);
             success++;
           } catch (singleErr: any) {
-            // Even if Firestore hits quota, backend server sync already preserved the article
-            success++;
+            console.error(`Failed to save article ${article.id} to Firestore:`, singleErr);
+            failed++;
+            errors.push({
+              title: item.koreanTitle || article.title,
+              articleId: article.id,
+              error: singleErr?.message || 'Firestore write error',
+              item,
+            });
           }
           processed++;
         }

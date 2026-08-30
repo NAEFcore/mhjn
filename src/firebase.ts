@@ -331,16 +331,7 @@ export async function fetchArticlesFromFirestore(): Promise<Article[]> {
       return dateB - dateA;
     });
   } catch (error: any) {
-    console.warn('Firestore fetch notice (using backend server fallback if quota exceeded):', error?.message || error);
-    try {
-      const res = await fetch('/api/articles');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.articles) && data.articles.length > 0) {
-          return data.articles;
-        }
-      }
-    } catch {}
+    console.warn('Firestore fetch notice:', error?.message || error);
     return [];
   }
 }
@@ -768,17 +759,6 @@ export async function deleteWordPressImportedArticlesFromFirestore(
       await new Promise(resolve => setTimeout(resolve, 20));
     }
 
-    // Also sync deletion with backend server
-    try {
-      await fetch('/api/articles/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: targetArticleIds }),
-      });
-    } catch (apiErr) {
-      console.warn('Backend server bulk delete notice:', apiErr);
-    }
-
     return { deletedCount, failedCount };
   } catch (err) {
     console.error('Error in deleteWordPressImportedArticlesFromFirestore:', err);
@@ -816,7 +796,7 @@ export async function fetchDualPopupsConfigFromFirestore(): Promise<any | null> 
 
 /**
  * Fast aggregated document count from Firestore server
- * Returns the exact total number of articles stored in Firestore (e.g. ~2,260)
+ * Returns the exact total number of articles stored in Firestore
  */
 export async function getFirestoreArticleTotalCount(): Promise<number> {
   try {
@@ -825,6 +805,21 @@ export async function getFirestoreArticleTotalCount(): Promise<number> {
     return snapshot.data().count;
   } catch (err) {
     console.warn('Failed to get count from server, fallback to default count:', err);
+    return 0;
+  }
+}
+
+/**
+ * Fast aggregated WordPress document count from Firestore server
+ */
+export async function getFirestoreWordPressArticleTotalCount(): Promise<number> {
+  try {
+    const articlesCol = collection(db, 'articles');
+    const qWp = query(articlesCol, where('importSource', '==', 'wordpress'));
+    const snapshot = await getCountFromServer(qWp);
+    return snapshot.data().count;
+  } catch (err) {
+    console.warn('Failed to get WP count from server:', err);
     return 0;
   }
 }
