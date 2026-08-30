@@ -88,11 +88,11 @@ export default function App() {
           }
         }).catch(() => {});
 
-        // 1. Subscribe to Firestore in realtime (with safe fallback to local cache / backend store)
+        // 1. Subscribe to Firestore articles in realtime
         unsubscribe = subscribeToFirestoreArticles((incomingArticles) => {
           if (incomingArticles && incomingArticles.length > 0) {
             console.log('[FINAL APP STATE]', {
-              source: 'FIRESTORE_OR_SERVER_FALLBACK',
+              source: 'FIRESTORE_ARTICLES',
               count: incomingArticles.length,
               firstId: incomingArticles[0]?.id,
               firstTitle: incomingArticles[0]?.title,
