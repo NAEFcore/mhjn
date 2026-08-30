@@ -346,42 +346,13 @@ export function parseDateSafely(dateVal?: any): number {
  */
 export async function fetchArticlesFromFirestore(limitCount: number = 80): Promise<Article[]> {
   try {
-    // 1. Fetch from unified server API single source of truth
-    const res = await fetch('/api/articles');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.articles) && data.articles.length > 0) {
-        return data.articles.sort((a: Article, b: Article) => {
-          const dateA = parseDateSafely(a.publishedAt);
-          const dateB = parseDateSafely(b.publishedAt);
-          return dateB - dateA;
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('API articles fetch fallback:', err);
-  }
-
-  try {
-    // 2. Direct Firestore SDK fetch fallback
     const articlesCol = collection(db, 'articles');
     const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
     const snapshot = await getDocs(q);
-    if (snapshot.empty) {
-      return [];
-    }
-    const articles: Article[] = [];
-    snapshot.forEach(docSnap => {
-      articles.push(firestoreDocToArticle(docSnap.data(), docSnap.id));
-    });
-    // Sort latest first with safe date parsing
-    return articles.sort((a, b) => {
-      const dateA = parseDateSafely(a.publishedAt);
-      const dateB = parseDateSafely(b.publishedAt);
-      return dateB - dateA;
-    });
+    const articles = snapshot.docs.map(docSnap => firestoreDocToArticle(docSnap.data(), docSnap.id));
+    return articles.sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
   } catch (error: any) {
-    console.warn('Firestore fetch notice:', error?.message || error);
+    console.warn('Firestore fetch failed:', error?.message || error);
     return [];
   }
 }
@@ -393,17 +364,8 @@ export async function fetchArticleByIdFromFirestore(articleId: string): Promise<
   if (!articleId) return null;
   const cleanId = String(articleId).trim();
 
-  // 1. Try fetching from server single source of truth
   try {
-    const res = await fetch(`/api/articles/${encodeURIComponent(cleanId)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.article) return data.article;
-    }
-  } catch {}
-
-  try {
-    // 2. Direct document key lookup in Firestore
+    // Direct document key lookup in Firestore
     const docRef = doc(db, 'articles', cleanId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
@@ -510,47 +472,15 @@ export async function fetchAdjacentArticlesFromFirestore(
  * Save / Update a single article strictly in Firestore articles collection & server single source of truth
  */
 export async function saveArticleToFirestore(article: Article): Promise<void> {
-  // 1. Save to Unified Server API
-  try {
-    await fetch('/api/articles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(article),
-    });
-  } catch (apiErr) {
-    console.warn('Server API save notice:', apiErr);
-  }
-
-  // 2. Save to Firestore SDK
-  try {
-    const docRef = doc(db, 'articles', article.id);
-    const data = articleToFirestoreDoc(article);
-    await setDoc(docRef, data, { merge: true });
-  } catch (error: any) {
-    console.warn(`Firestore save notice for ${article.id}:`, error?.message || error);
-  }
+  const docRef = doc(db, 'articles', article.id);
+  await setDoc(docRef, articleToFirestoreDoc(article), { merge: true });
 }
 
 /**
  * Delete an article strictly from Firestore articles collection & server store
  */
 export async function deleteArticleFromFirestore(articleId: string): Promise<void> {
-  // 1. Delete from Unified Server API
-  try {
-    await fetch(`/api/articles/${encodeURIComponent(articleId)}`, {
-      method: 'DELETE',
-    });
-  } catch (apiErr) {
-    console.warn('Server API delete notice:', apiErr);
-  }
-
-  // 2. Delete from Firestore SDK
-  try {
-    const docRef = doc(db, 'articles', articleId);
-    await deleteDoc(docRef);
-  } catch (error: any) {
-    console.warn(`Firestore delete notice for ${articleId}:`, error?.message || error);
-  }
+  await deleteDoc(doc(db, 'articles', articleId));
 }
 
 /**
@@ -560,17 +490,6 @@ export async function saveArticlesBatchToFirestore(
   articles: Article[], 
   onProgress?: (processed: number, total: number) => void
 ): Promise<{ success: number; failed: number; errors: Array<{ articleId: string; error: string }> }> {
-  // 1. Batch sync to Unified Server API
-  try {
-    await fetch('/api/articles/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ articles }),
-    });
-  } catch (apiErr) {
-    console.warn('Server API batch save notice:', apiErr);
-  }
-
   const CHUNK_SIZE = 100;
   let successCount = 0;
   let failedCount = 0;
@@ -615,26 +534,6 @@ export async function saveArticlesBatchToFirestore(
   return { success: successCount, failed: failedCount, errors };
 }
 
-/**
- * Seed initial articles if Firestore is completely empty on first launch
- * Returns null if read fails, preventing accidental overwrites.
- */
-export async function seedInitialArticlesIfEmpty(): Promise<Article[] | null> {
-  try {
-    const existing = await fetchArticlesFromFirestore();
-    if (existing && existing.length > 0) {
-      return existing;
-    }
-
-    console.info('Firestore articles collection is completely empty. Seeding initial articles...');
-    await saveArticlesBatchToFirestore(INITIAL_ARTICLES);
-    return INITIAL_ARTICLES;
-  } catch (err) {
-    console.warn('Firestore read error during seed check; skipping seed to prevent data loss:', err);
-    return null;
-  }
-}
-
 // Last visible document cursor from initial 80 load or previous load more batch
 export let lastVisibleFirestoreDoc: QueryDocumentSnapshot<DocumentData> | null = null;
 export const categoryLastDocSnapshots: Record<string, QueryDocumentSnapshot<DocumentData> | null> = {};
@@ -648,86 +547,23 @@ export function subscribeToFirestoreArticles(
   onError?: (error: Error) => void,
   limitCount: number = 80
 ): () => void {
-  let isUnmounted = false;
-
-  // 1. Initial fast load from unified server single source of truth
-  const syncFromServer = async () => {
-    try {
-      const res = await fetch('/api/articles');
-      if (res.ok && !isUnmounted) {
-        const data = await res.json();
-        if (Array.isArray(data.articles) && data.articles.length > 0) {
-          const sorted = data.articles.sort((a: Article, b: Article) => {
-            const dateA = parseDateSafely(a.publishedAt);
-            const dateB = parseDateSafely(b.publishedAt);
-            return dateB - dateA;
-          });
-          onUpdate(sorted);
-        }
-      }
-    } catch (err) {
-      console.warn('[SYNC SERVER NOTICE]', err);
-    }
-  };
-
-  syncFromServer();
-
-  // 2. Periodic sync timer to ensure instant multi-browser cross-sync
-  const pollInterval = setInterval(() => {
-    if (!isUnmounted) {
-      syncFromServer();
-    }
-  }, 4000);
-
-  // 3. Firestore realtime snapshot listener
   const articlesCol = collection(db, 'articles');
   const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
-  
-  const unsubscribeFirestore = onSnapshot(q, (snapshot) => {
-    if (snapshot.empty || isUnmounted) {
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      lastVisibleFirestoreDoc = null;
+      onUpdate([]);
       return;
     }
-
-    // Save the last visible document snapshot cursor
     lastVisibleFirestoreDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-
-    const list: Article[] = [];
-    snapshot.forEach(docSnap => {
-      list.push(firestoreDocToArticle(docSnap.data(), docSnap.id));
-    });
-    // Sort latest first using parseDateSafely
-    const sorted = list.sort((a, b) => {
-      const dateA = parseDateSafely(a.publishedAt);
-      const dateB = parseDateSafely(b.publishedAt);
-      return dateB - dateA;
-    });
-
-    console.log('[FIRESTORE]', {
-      success: true,
-      count: sorted.length,
-      firstTitle: sorted[0]?.title,
-      firstId: sorted[0]?.id,
-      firstPublishedAt: sorted[0]?.publishedAt,
-      lastCursorId: lastVisibleFirestoreDoc?.id,
-    });
-
+    const sorted = snapshot.docs
+      .map(docSnap => firestoreDocToArticle(docSnap.data(), docSnap.id))
+      .sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
     onUpdate(sorted);
-  }, async (err) => {
-    console.warn('[FIRESTORE] Error/QuotaNotice:', err?.message || err);
-    console.log('[FIRESTORE]', {
-      success: false,
-      errorType: err?.name || 'FirestoreError',
-      errorMessage: err?.message || String(err),
-    });
-
+  }, (err) => {
+    console.warn('[FIRESTORE] subscription error:', err?.message || err);
     if (onError) onError(err);
   });
-
-  return () => {
-    isUnmounted = true;
-    clearInterval(pollInterval);
-    unsubscribeFirestore();
-  };
 }
 
 /**

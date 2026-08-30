@@ -102,7 +102,7 @@ export function loadPersistedArticles(): Article[] {
     firstId: INITIAL_ARTICLES[0]?.id,
     firstTitle: INITIAL_ARTICLES[0]?.title,
   });
-  return INITIAL_ARTICLES;
+  return [];
 }
 
 // Helper to sanitize an article for lightweight localStorage cache (< 1KB per article)
