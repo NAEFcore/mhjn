@@ -1,6 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection, 
   doc, 
   getDocs, 
@@ -47,15 +50,23 @@ const firestoreDatabaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || DEFAULT
 // Initialize Firebase App
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore
+// Initialize Firestore with persistent IndexedDB multi-tab cache to drastically reduce read quota usage
 let firestoreInstance: Firestore;
 try {
-  firestoreInstance = firestoreDatabaseId 
-    ? getFirestore(app, firestoreDatabaseId)
-    : getFirestore(app);
-} catch (e) {
-  console.warn('Initializing default database instance fallback:', e);
-  firestoreInstance = getFirestore(app);
+  firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  }, firestoreDatabaseId || undefined);
+} catch {
+  try {
+    firestoreInstance = firestoreDatabaseId 
+      ? getFirestore(app, firestoreDatabaseId)
+      : getFirestore(app);
+  } catch (fallbackErr) {
+    console.warn('Initializing default database instance fallback:', fallbackErr);
+    firestoreInstance = getFirestore(app);
+  }
 }
 
 export const db = firestoreInstance;
@@ -311,12 +322,13 @@ export function parseDateSafely(dateVal?: any): number {
 }
 
 /**
- * Fetch all articles from Firestore (with automatic server fallback when quota exceeded)
+ * Fetch latest articles from Firestore with safe quota limit
  */
-export async function fetchArticlesFromFirestore(): Promise<Article[]> {
+export async function fetchArticlesFromFirestore(limitCount: number = 80): Promise<Article[]> {
   try {
     const articlesCol = collection(db, 'articles');
-    const snapshot = await getDocs(articlesCol);
+    const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
+    const snapshot = await getDocs(q);
     if (snapshot.empty) {
       return [];
     }
@@ -554,11 +566,13 @@ export const categoryLastDocSnapshots: Record<string, QueryDocumentSnapshot<Docu
  */
 export function subscribeToFirestoreArticles(
   onUpdate: (articles: Article[]) => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
+  limitCount: number = 80
 ): () => void {
   const articlesCol = collection(db, 'articles');
+  const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
   
-  return onSnapshot(articlesCol, (snapshot) => {
+  return onSnapshot(q, (snapshot) => {
     if (snapshot.empty) {
       // Do NOT wipe out existing articles with empty array on empty snapshot
       return;
