@@ -20,7 +20,6 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-const ARTICLES_FILE = path.join(DATA_DIR, 'articles.json');
 const ADS_FILE = path.join(DATA_DIR, 'ads.json');
 const POPUPS_FILE = path.join(DATA_DIR, 'popups.json');
 
@@ -45,140 +44,7 @@ function writeJsonFile<T>(filePath: string, data: T): void {
   }
 }
 
-// Initial Seed Articles (Including user's test article art-user-1787492319169)
-const SEED_ARTICLES = [
-  {
-    id: 'art-user-1787492319169',
-    category: 'opinion',
-    categoryLabel: '오피니언',
-    subCategory: '사설·칼럼',
-    title: '역도산과 함경도 전통 신체문화의 재조명, 임홍택 박사',
-    subtitle: '일본 프로레슬링 전설 역도산(김신락)의 한반도 북부 전통 신체문화 성장 배경과 미발굴 역사적 의의 고찰',
-    summary: '역도산(김신락)은 오늘날 일본 프로레슬링의 상징적 인물로 널리 알려져 있다. 그러나 그가 함경남도 홍원 출신이라는 사실과, 그의 성장 배경이 한반도 북부 지역의 전통 신체문화 환경과 연결되어 있다는 점은 상대적으로 충분히 조명되지 못했다.',
-    content: `역도산(김신락)은 오늘날 일본 프로레슬링의 상징적 인물로 널리 알려져 있다. 그러나 그가 함경남도 홍원 출신이라는 사실과, 그의 성장 배경이 한반도 북부 지역의 전통 신체문화 환경과 연결되어 있다는 점은 상대적으로 충분히 조명되지 못했다.
-
-전통사회에서 신체문화는 오늘날처럼 스포츠, 무예, 놀이, 축제 등으로 명확히 구분된 형태로 존재하지 않았다. 농경과 어로, 군사 훈련, 마을 축제와 신체 단련이 서로 밀접하게 결합된 총체적 생활문화였다.
-
-함경도 지역은 험준한 지형과 혹독한 기후, 국경 지대라는 지리적 특성으로 인해 강인한 신체 능력과 체력이 강조되었으며, 단오와 백중 등 명절에 행해지던 씨름과 힘겨루기(돌들기 등)는 단순한 오락을 넘어 공동체의 기상을 확인하는 신체문화였다.
-
-임홍택 서울문화예술대학교 교수는 이러한 함경도 전통 신체문화와 무형유산의 맥락 속에서 역도산의 신체적 정체성과 한반도 근대 체육사의 미발굴 영역을 입체적으로 조명하고 있다.
-
-역도산의 성장기에 형성된 강인한 골격과 씨름 기술, 정신적 끈기는 단순히 개인적 재능에 국한된 것이 아니라, 함경도 홍원 일대의 유구한 전통 신체문화의 토양 위에서 배양된 것이라는 평가다. 향후 남북 전통 무예 교류 및 신체문화사 연구의 중요한 이정표가 될 것으로 기대를 모은다.`,
-    reporter: {
-      id: 'rep-lim-ht',
-      name: '임홍택',
-      title: '서울문화예술대학교 교수',
-      department: '오피니언·학술비평 데스크',
-      email: 'lim.ht@kculturejournal.com',
-      avatar: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&q=80&w=200',
-      bio: '서울문화예술대학교 교수 / 한국 전통 신체문화 및 무예사 연구자',
-      subscriberCount: 21400,
-      cheerCount: 3900,
-    },
-    publishedAt: '2026.08.24',
-    views: 48920,
-    shares: 1240,
-    likes: 3120,
-    reactions: { info: 680, exciting: 420, empathy: 1120, analysis: 940, followup: 410 },
-    imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&q=80&w=800',
-    imageCaption: '▲ 임홍택 서울문화예술대학교 교수 (한국문화저널 특별 기고)',
-    tags: ['한국문화저널', '문화예술', '단독보도', '오피니언', '칼럼', '임홍택'],
-    badge: '칼럼',
-    commentsCount: 42,
-    mainNewsEnabled: true,
-    subNewsEnabled: true,
-    subNewsCategory: 'politics_economy',
-  },
-  {
-    id: 'art-001',
-    category: 'culture_art',
-    categoryLabel: '문화·예술',
-    subCategory: '미술·전시',
-    title: '[단독] "600년 비움의 미학"… 국립중앙박물관, 조선 백자 달항아리 30점 한자리 첫 공개',
-    subtitle: '국보·보물급 조선 후기 대표 백자 총집결… 해외 유수 미술관 소장품 7점 국내 귀환 전시',
-    summary: '국립중앙박물관이 한미 수교 및 문화유산 교류 140주년을 맞아 대영박물관, 메트로폴리탄 소장 백자를 포함한 조선 달항아리 명작 30점을 역대 최대 규모로 선보인다.',
-    content: `조선 후기 선비 정신과 한국 고유의 담백한 조형미를 대표하는 '달항아리(백자대호·白磁大壺)'의 진수가 국립중앙박물관 기획전시실에서 펼쳐진다.
-
-21일 한국문화저널 취재를 종합하면, 국립중앙박물관은 오는 9월부터 '달을 품은 흙, 조선의 마음을 빚다' 특별기획전을 개최한다. 이번 전시는 국보 제309호 백자 달항아리를 비롯해 영국 대영박물관, 미국 메트로폴리탄 미술관, 프랑스 기메 박물관 등에 소장되어 있던 희귀 해외 유물 7점이 80년 만에 고국으로 돌아와 함께 전시되는 사상 첫 프로젝트다.
-
-달항아리는 17세기 후반부터 18세기 전반에 걸쳐 경기도 광주 분원에서 제작된 대형 순백자로, 둥근 형태가 보름달을 닮아 붙여진 이름이다. 상부와 하부를 따로 물레로 빚은 뒤 이음매를 맞추어 가마에 구워내기 때문에 완전한 구형이 아닌 자연스러운 비대칭의 곡선미가 특징이다.`,
-    reporter: {
-      id: 'kim_yr',
-      name: '김예림',
-      title: '문화부 미술·헤리티지 전문기자',
-      department: '문화부 미술팀',
-      email: 'yerim.kim@kculturejournal.com',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      bio: '국립현대미술관·국립중앙박물관 출입 12년. 전통 백자와 현대 미술의 접점을 탐구합니다.',
-      subscriberCount: 38400,
-      cheerCount: 4210,
-    },
-    publishedAt: '2026.08.21',
-    views: 124500,
-    shares: 3420,
-    likes: 8930,
-    reactions: { info: 1840, exciting: 920, empathy: 2450, analysis: 1320, followup: 680 },
-    imageUrl: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800',
-    imageCaption: '▲ 국립중앙박물관 소장 국보 백자 달항아리. 은은한 우윳빛 유약과 유려한 비대칭 곡선이 돋보인다.',
-    tags: ['달항아리', '조선백자', '국립중앙박물관', 'K-헤리티지', '전통도예', '단독보도'],
-    badge: '단독',
-    commentsCount: 142,
-    mainNewsEnabled: true,
-    subNewsEnabled: true,
-    subNewsCategory: 'culture_art',
-  },
-  {
-    id: 'art-002',
-    category: 'heritage',
-    categoryLabel: '전통·유산',
-    subCategory: '문화재 복원',
-    title: '경복궁 근정전 처마 끝 천년의 숨결, 전통 단청장 3대(代)의 불꽃 복원기',
-    subtitle: '천연 광물 안료 ‘석채’로 되살린 조선 궁궐의 장엄미… 3년에 걸친 국가유산 정밀 수리 대장정',
-    summary: '조선 왕실의 정궁 경복궁 근정전의 단청이 150년 만에 전통 석채 기법으로 온전히 복원되었다. 국가무형유산 단청장 보유자와 전수생들의 땀방울을 기록했다.',
-    content: `붉고 푸른 오방색(五方位)이 빚어내는 장엄한 조화가 경복궁 근정전 처마 아래로 되살아났다.
-
-문화유산청 산하 궁능유적본부는 지난 2023년부터 3개년에 걸쳐 추진해 온 '경복궁 근정전 단청 종합 보존정비 사업'을 성공적으로 마무리했다고 20일 발표했다. 이번 복원은 일제강점기와 1970년대 보수 당시 사용된 화학 합성 안료를 전면 제거하고, 19세기 고종 중건 당시의 원형 기록(영건의궤)에 따라 100% 천연 광물 안료(석채)와 아교만을 사용하여 복원한 최초의 국가유산 정밀 수리 사례다.`,
-    reporter: {
-      id: 'park_cw',
-      name: '박찬우',
-      title: '문화재·역사 심층취재 데스크',
-      department: '문화재 기획취재부',
-      email: 'cw.park@kculturejournal.com',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&q=80',
-      bio: '국가유산청 전문 출입. 사라져가는 무형유산 장인과 조선왕실 의궤 복원 현장을 기록합니다.',
-      subscriberCount: 45900,
-      cheerCount: 6890,
-    },
-    publishedAt: '2026.08.20',
-    views: 98300,
-    shares: 2150,
-    likes: 6540,
-    reactions: { info: 2100, exciting: 640, empathy: 1890, analysis: 1450, followup: 460 },
-    imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=800',
-    imageCaption: '▲ 천연 석채로 복원된 경복궁 근정전 추녀마루 단청의 화려하고 정교한 문양.',
-    tags: ['경복궁', '단청장', '국가유산청', '문화재복원', '조선왕실', 'K-헤리티지'],
-    badge: '기획',
-    commentsCount: 89,
-    mainNewsEnabled: true,
-    subNewsEnabled: true,
-    subNewsCategory: 'culture_art',
-  },
-];
-
 // Initialize Persistent Stores
-let serverArticles: any[] = readJsonFile(ARTICLES_FILE, SEED_ARTICLES);
-if (serverArticles.length === 0) {
-  serverArticles = SEED_ARTICLES;
-  writeJsonFile(ARTICLES_FILE, serverArticles);
-} else {
-  // Ensure the user's test article is always present in server storage
-  const hasUserArticle = serverArticles.some(a => a.id === 'art-user-1787492319169');
-  if (!hasUserArticle) {
-    serverArticles = [SEED_ARTICLES[0], ...serverArticles];
-    writeJsonFile(ARTICLES_FILE, serverArticles);
-  }
-}
-
 let serverAdSettings: any = readJsonFile(ADS_FILE, {
   belowSubtitle: `<div style="width:100%;min-height:120px;display:flex;align-items:center;justify-content:center;border:1px solid #ddd;background:#f5f5f5;font-size:20px;color:#333;font-weight:bold;">
 한국문화저널 광고 테스트
@@ -675,18 +541,7 @@ function escapeAttribute(str: string | undefined | null): string {
 }
 
 function getAllArticles(): any[] {
-  const map = new Map<string, any>();
-  if (Array.isArray(INITIAL_ARTICLES)) {
-    for (const art of INITIAL_ARTICLES) {
-      if (art && art.id) map.set(art.id, art);
-    }
-  }
-  if (Array.isArray(serverArticles)) {
-    for (const art of serverArticles) {
-      if (art && art.id) map.set(art.id, art);
-    }
-  }
-  return Array.from(map.values());
+  return Array.isArray(INITIAL_ARTICLES) ? INITIAL_ARTICLES : [];
 }
 
 function renderPageHtml(template: string, reqPath: string, req: express.Request): { html: string; status: number } {
