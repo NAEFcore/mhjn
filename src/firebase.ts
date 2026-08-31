@@ -542,6 +542,16 @@ export const categoryLastDocSnapshots: Record<string, QueryDocumentSnapshot<Docu
  * Realtime subscriber for Firestore articles & Unified Server Single Source of Truth
  * Ensures Edge, Incognito, Chrome, and all browsers share 100% identical data.
  */
+/**
+ * One-time Firestore read used as a startup fallback for mobile and fresh browsers.
+ * This does not use browser storage and does not replace the realtime listener.
+ */
+export async function fetchInitialArticlesFromFirestore(limitCount: number = 80): Promise<Article[]> {
+  const articlesCol = collection(db, 'articles');
+  const snapshot = await getDocs(query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount)));
+  return snapshot.docs.map(docSnap => firestoreDocToArticle(docSnap.data(), docSnap.id)).sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
+}
+
 export function subscribeToFirestoreArticles(
   onUpdate: (articles: Article[]) => void,
   onError?: (error: Error) => void,
