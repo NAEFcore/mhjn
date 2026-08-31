@@ -15,7 +15,6 @@ import { AdminDeskModal } from './components/AdminDeskModal';
 import { ReporterAuthModal } from './components/ReporterAuthModal';
 import { LayerPopup } from './components/LayerPopup';
 import { 
-  savePersistedArticles,
   loadPersistedReporters,
   savePersistedReporters,
   loadPersistedEvents,
@@ -97,7 +96,6 @@ export default function App() {
             });
             // Completely replace articles state with Firestore data without merging old cache
             setArticlesState(incomingArticles);
-            savePersistedArticles(incomingArticles);
           }
         }, (err) => {
           console.warn('Firestore subscription failed:', err?.message || err);
@@ -136,7 +134,6 @@ export default function App() {
   const setArticles = (newArticles: Article[] | ((prev: Article[]) => Article[])) => {
     setArticlesState((prev) => {
       const next = typeof newArticles === 'function' ? newArticles(prev) : newArticles;
-      savePersistedArticles(next);
       return next;
     });
   };
