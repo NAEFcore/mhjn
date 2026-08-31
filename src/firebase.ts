@@ -1,9 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   collection, 
   doc, 
   getDocs, 
@@ -50,26 +47,12 @@ const firestoreDatabaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || DEFAULT
 // Initialize Firebase App
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore with persistent IndexedDB multi-tab cache to drastically reduce read quota usage
-let firestoreInstance: Firestore;
-try {
-  firestoreInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
-  }, firestoreDatabaseId || undefined);
-} catch {
-  try {
-    firestoreInstance = firestoreDatabaseId 
-      ? getFirestore(app, firestoreDatabaseId)
-      : getFirestore(app);
-  } catch (fallbackErr) {
-    console.warn('Initializing default database instance fallback:', fallbackErr);
-    firestoreInstance = getFirestore(app);
-  }
-}
-
-export const db = firestoreInstance;
+// Use the standard Firestore client without persistent browser storage.
+// This keeps normal, private/incognito, mobile, and fresh browsers on the same
+// server-backed data path instead of depending on IndexedDB cache availability.
+export const db: Firestore = firestoreDatabaseId
+  ? getFirestore(app, firestoreDatabaseId)
+  : getFirestore(app);
 
 /**
  * Converts internal Article object to Firestore document format
