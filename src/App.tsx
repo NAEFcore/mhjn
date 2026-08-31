@@ -28,7 +28,8 @@ import {
   savePersistedDualPopupsConfig
 } from './utils/storage';
 import { 
-  subscribeToFirestoreArticles, 
+  subscribeToFirestoreArticles,
+  fetchInitialArticlesFromFirestore, 
   deleteArticleFromFirestore,
   saveDualPopupsConfigToFirestore,
   fetchDualPopupsConfigFromFirestore,
@@ -85,7 +86,18 @@ export default function App() {
           }
         }).catch(() => {});
 
-        // Realtime Firestore subscription (automatically fetches initial state and listens for live updates)
+        // One-time direct Firestore read first. This gives mobile and fresh browsers an immediate server read even if realtime listener startup is delayed.
+        try {
+          const initialArticles = await fetchInitialArticlesFromFirestore();
+          if (initialArticles.length > 0) {
+            setArticlesState(initialArticles);
+            savePersistedArticles(initialArticles);
+          }
+        } catch (initialErr) {
+          console.warn('Initial Firestore article read failed:', initialErr);
+        }
+
+        // Realtime Firestore subscription keeps all browsers updated after the initial read.
         unsubscribe = subscribeToFirestoreArticles((incomingArticles) => {
           if (incomingArticles && incomingArticles.length > 0) {
             console.log('[FINAL APP STATE]', {
