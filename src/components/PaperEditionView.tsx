@@ -61,7 +61,11 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
 
     return PAGE_DEFS.map((def, idx) => {
       // 1. Find articles explicitly assigned to this pageNumber by admin
-      const explicitlyAssigned = publishedArticles.filter(a => a.pageNumber === def.pageNumber && (a as any).paperAssigned === true);
+      // pageNumber itself is now the explicit administrator assignment.
+      // Do not require the newer paperAssigned flag: older Firestore records
+      // created before that flag was introduced would otherwise appear on PC cache
+      // but disappear on a fresh mobile load.
+      const explicitlyAssigned = publishedArticles.filter(a => a.pageNumber === def.pageNumber);
       
       let pageArticles: Article[] = [];
 
