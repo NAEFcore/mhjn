@@ -348,7 +348,9 @@ export function parseDateSafely(dateVal?: any): number {
 export async function fetchArticlesFromFirestore(limitCount: number = 80): Promise<Article[]> {
   try {
     const articlesCol = collection(db, 'articles');
-    const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
+    // Newspaper assignments may exist on older articles outside the latest 80.
+  // Use the full collection so every explicit page assignment can be cleared and reflected consistently.
+  const q = query(articlesCol, orderBy('publishedAt', 'desc'));
     const snapshot = await getDocs(q);
     const articles = snapshot.docs.map(docSnap => firestoreDocToArticle(docSnap.data(), docSnap.id));
     return articles.sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
