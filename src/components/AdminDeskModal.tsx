@@ -556,6 +556,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
             subNewsCategory: formSubNewsCategory,
             canonicalUrl: canonical,
             status: targetStatus,
+            requiresEditorApproval: !isEditorInChief || targetStatus === 'PENDING_REVIEW',
             updatedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
           };
           updatedTargetArticle = modified;
@@ -605,6 +606,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
         subNewsCategory: formSubNewsCategory,
         canonicalUrl: canonical,
         status: targetStatus,
+        requiresEditorApproval: !isEditorInChief || targetStatus === 'PENDING_REVIEW',
         commentsCount: 0,
       };
 
