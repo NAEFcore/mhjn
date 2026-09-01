@@ -33,7 +33,13 @@ export const AmpMobilePage: React.FC<AmpMobilePageProps> = ({
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
-  const publishedArticles = articles.filter(a => !a.status || a.status === 'PUBLISHED');
+  // Match the public main-news visibility rules and tolerate legacy/lowercase
+  // WordPress import statuses so mobile never hides otherwise published articles.
+  const publishedArticles = articles.filter(a => {
+    if (a.mainNewsEnabled === false) return false;
+    const status = String(a.status || 'PUBLISHED').toUpperCase();
+    return status === 'PUBLISHED' || status === 'PUBLISH';
+  });
   const topArticle = publishedArticles.find(a => a.isTopHeadline) || publishedArticles[0];
   const listArticles = publishedArticles.filter(a => a.id !== topArticle?.id);
 
