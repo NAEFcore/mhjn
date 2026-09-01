@@ -191,7 +191,11 @@ export function firestoreDocToArticle(docData: any, docId: string): Article {
   const createdAt = formatFirestoreDateToString(rawPublished);
   const rawUpdated = docData.updatedAt || docData.publishedAt || docData.createdAt;
   const updatedAt = formatFirestoreDateToString(rawUpdated);
-  const status = docData.status || 'PUBLISHED';
+  // Legacy WordPress imports without a status are public, but reporter submissions
+  // must never default to PUBLISHED when their status is missing.
+  const isReporterSubmission = typeof docData.reporter === 'object' && docData.reporter !== null &&
+    docData.reporter.id && docData.reporter.id !== 'rep-editor';
+  const status = docData.status || (isReporterSubmission ? 'PENDING_REVIEW' : 'PUBLISHED');
   const category = (docData.category || 'culture_art') as CategoryId;
   const importSource = docData.importSource || (
     docData.sourceName === 'WordPress Import' || 
