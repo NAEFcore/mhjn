@@ -294,6 +294,11 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
   // Reporter/editor private review is handled only inside the CMS desk.
   const visibleArticles = articles.filter((art) => {
     if (art.mainNewsEnabled === false) return false;
+    // Legacy imported WordPress articles may have no status and remain public.
+    // Every article submitted through the reporter desk must be explicitly PUBLISHED.
+    if (art.reporter?.id && art.reporter.id !== 'rep-editor') {
+      return art.status === 'PUBLISHED';
+    }
     return !art.status || art.status === 'PUBLISHED';
   });
 
