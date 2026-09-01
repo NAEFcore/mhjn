@@ -16,13 +16,15 @@ import { AuthUser, Reporter } from '../types';
 interface ReporterAuthModalProps {
   onClose: () => void;
   currentUser: AuthUser | null;
+  reporters: Reporter[];
   onLoginSuccess: (user: AuthUser) => void;
-  onRegisterReporter: (newReporter: Reporter, newAuth: AuthUser) => void;
+  onRegisterReporter: (newReporter: Reporter, password: string) => void;
 }
 
 export const ReporterAuthModal: React.FC<ReporterAuthModalProps> = ({
   onClose,
   currentUser,
+  reporters,
   onLoginSuccess,
   onRegisterReporter,
 }) => {
@@ -48,39 +50,53 @@ export const ReporterAuthModal: React.FC<ReporterAuthModalProps> = ({
     setLoginError('');
 
     if (loginRole === 'EDITOR_IN_CHIEF') {
-      // Strictly authenticate Editor-in-Chief
       if (loginEmail.trim() === 'soobakmu@naver.com' && loginPassword === 'soobakone1#') {
-        const editorUser: AuthUser = {
+        onLoginSuccess({
           id: 'user-editor-01',
           name: '편집국장 (수석 데스크)',
           email: 'soobakmu@naver.com',
           role: 'EDITOR_IN_CHIEF',
           department: '편집국',
           avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-        };
-        onLoginSuccess(editorUser);
+        });
         onClose();
       } else {
         setLoginError('편집국장 계정 이메일 또는 비밀번호가 올바르지 않습니다.');
       }
-    } else {
-      // Reporter login
-      if (!loginEmail.trim() || !loginPassword) {
-        setLoginError('이메일과 비밀번호를 입력해주세요.');
-        return;
-      }
-      const reporterUser: AuthUser = {
-        id: `user-${Date.now()}`,
-        name: loginEmail.split('@')[0] + ' 기자',
-        email: loginEmail,
-        role: 'REPORTER',
-        department: '문화부',
-        reporterId: 'rep_custom',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-      };
-      onLoginSuccess(reporterUser);
-      onClose();
+      return;
     }
+
+    const reporter = reporters.find(r => r.email.trim().toLowerCase() === loginEmail.trim().toLowerCase());
+    if (!reporter) {
+      setLoginError('등록된 기자 계정을 찾을 수 없습니다. 먼저 기자 회원가입을 신청해주세요.');
+      return;
+    }
+    if (reporter.status === 'PENDING_APPROVAL') {
+      setLoginError('기자 등록은 완료되었지만 편집국장 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.');
+      return;
+    }
+    if (reporter.status === 'SUSPENDED') {
+      setLoginError('현재 로그인 권한이 정지된 기자 계정입니다.');
+      return;
+    }
+
+    // Temporary client-side password check until Firebase Authentication is enabled.
+    const storedPassword = typeof window !== 'undefined' ? localStorage.getItem('kcj_reporter_password_' + reporter.id) : null;
+    if (!storedPassword || storedPassword !== loginPassword) {
+      setLoginError('이메일 또는 비밀번호가 올바르지 않습니다.');
+      return;
+    }
+
+    onLoginSuccess({
+      id: 'user-' + reporter.id,
+      name: reporter.name,
+      email: reporter.email,
+      role: 'REPORTER',
+      department: reporter.department,
+      reporterId: reporter.id,
+      avatar: reporter.avatar,
+    });
+    onClose();
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -115,12 +131,10 @@ export const ReporterAuthModal: React.FC<ReporterAuthModalProps> = ({
       avatar: newReporter.avatar,
     };
 
-    onRegisterReporter(newReporter, newAuth);
+    // Registration only creates a PENDING_APPROVAL application.
+    // It never logs the applicant in.
+    onRegisterReporter(newReporter, regPassword);
     setRegSuccess(true);
-    setTimeout(() => {
-      onLoginSuccess(newAuth);
-      onClose();
-    }, 1200);
   };
 
   return (
@@ -262,7 +276,7 @@ export const ReporterAuthModal: React.FC<ReporterAuthModalProps> = ({
               {regSuccess && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                  <span>기자 등록이 완료되었습니다. 자동 로그인됩니다.</span>
+                  <span>기자 등록 신청이 완료되었습니다. 편집국장 승인 후 로그인할 수 있습니다.</span>
                 </div>
               )}
 
@@ -345,7 +359,7 @@ export const ReporterAuthModal: React.FC<ReporterAuthModalProps> = ({
                 type="submit"
                 className="w-full py-3 bg-[#1b2a47] text-white font-bold rounded-xl hover:bg-[#25375c] transition-all shadow-sm mt-2"
               >
-                신규 기자 등록 및 즉시 로그인
+                신규 기자 등록 신청
               </button>
             </form>
           )}
