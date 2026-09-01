@@ -87,18 +87,21 @@ export default function App() {
         }).catch(() => {});
 
         unsubscribe = subscribeToFirestoreArticles((incomingArticles) => {
-          if (incomingArticles && incomingArticles.length > 0) {
-            console.log('[FINAL APP STATE]', {
-              source: 'FIRESTORE_ARTICLES',
-              count: incomingArticles.length,
-              firstId: incomingArticles[0]?.id,
-              firstTitle: incomingArticles[0]?.title,
-              firstPublishedAt: incomingArticles[0]?.publishedAt,
-            });
-            // Completely replace articles state with Firestore data without merging old cache
-            setArticlesState(incomingArticles);
-            savePersistedArticles(incomingArticles);
-          }
+          // Firestore is the single source of truth, including an intentionally empty result.
+          // Never leave mobile/AMP showing stale or empty state because the callback returned zero items.
+          const firestoreArticles = Array.isArray(incomingArticles) ? incomingArticles : [];
+
+          console.log('[FINAL APP STATE]', {
+            source: 'FIRESTORE_ARTICLES',
+            count: firestoreArticles.length,
+            firstId: firestoreArticles[0]?.id,
+            firstTitle: firestoreArticles[0]?.title,
+            firstPublishedAt: firestoreArticles[0]?.publishedAt,
+          });
+
+          // Completely replace state with the current Firestore snapshot.
+          setArticlesState(firestoreArticles);
+          savePersistedArticles(firestoreArticles);
         }, (err) => {
           console.warn('Firestore subscription failed:', err?.message || err);
         });
