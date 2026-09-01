@@ -100,6 +100,7 @@ export function articleToFirestoreDoc(article: Article): Record<string, any> {
     publishedAt: pubDate,
     updatedAt: article.updatedAt || now,
     status: article.status || 'PUBLISHED',
+    requiresEditorApproval: Boolean((article as any).requiresEditorApproval),
     
     // Additional rich fields for UI & features
     categoryLabel: article.categoryLabel || '문화·예술',
@@ -273,6 +274,7 @@ export function firestoreDocToArticle(docData: any, docId: string): Article {
     aiSummary: Array.isArray(docData.aiSummary) ? docData.aiSummary : undefined,
     aiSummaryEn: Array.isArray(docData.aiSummaryEn) ? docData.aiSummaryEn : undefined,
     status: status,
+    requiresEditorApproval: Boolean(docData.requiresEditorApproval),
     mainNewsEnabled: docData.mainNewsEnabled !== false,
     subNewsEnabled: docData.subNewsEnabled !== false,
     subNewsCategory: (docData.subNewsCategory || 'sports') as SubNewsCategoryId,
