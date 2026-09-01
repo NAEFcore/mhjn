@@ -18,7 +18,6 @@ import {
   Bookmark
 } from 'lucide-react';
 import { Article, PaperPage } from '../types';
-import { PAPER_PAGES } from '../data/mockNews';
 
 interface PaperEditionViewProps {
   articles?: Article[];
@@ -66,26 +65,9 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
       
       let pageArticles: Article[] = [];
 
-      if (explicitlyAssigned.length > 0) {
-        // Limit to top 6 articles to prevent overwhelming the broadsheet newspaper layout
-        pageArticles = explicitlyAssigned.slice(0, 6);
-      } else {
-        // Fallback: Smart selection from live Firestore published articles matching the section category
-        if (def.pageNumber === 1) {
-          const topHeadlines = publishedArticles.filter(a => a.isTopHeadline);
-          pageArticles = topHeadlines.length > 0 ? topHeadlines.slice(0, 4) : publishedArticles.slice(0, 4);
-        } else {
-          const categoryMatches = publishedArticles.filter(a => def.categories.includes(a.category as any));
-          pageArticles = categoryMatches.length > 0 
-            ? categoryMatches.slice(0, 3) 
-            : publishedArticles.slice(idx * 3, idx * 3 + 3);
-        }
-
-        // Final fallback to mock paper pages only if no articles exist
-        if (pageArticles.length === 0 && PAPER_PAGES[idx]?.articles && PAPER_PAGES[idx].articles.length > 0) {
-          pageArticles = PAPER_PAGES[idx].articles;
-        }
-      }
+      // Newspaper pages must show ONLY articles explicitly assigned by the administrator.
+      // Never auto-fill from category, headlines, live articles, or mock data.
+      pageArticles = explicitlyAssigned.slice(0, 6);
 
       // Ensure top headline is first
       const topArt = pageArticles.find(a => a.isTopHeadline) || pageArticles[0];
