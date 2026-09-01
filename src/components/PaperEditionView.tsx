@@ -61,7 +61,7 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
 
     return PAGE_DEFS.map((def, idx) => {
       // 1. Find articles explicitly assigned to this pageNumber by admin
-      const explicitlyAssigned = publishedArticles.filter(a => a.pageNumber === def.pageNumber);
+      const explicitlyAssigned = publishedArticles.filter(a => a.pageNumber === def.pageNumber && (a as any).paperAssigned === true);
       
       let pageArticles: Article[] = [];
 
