@@ -115,8 +115,11 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
   onUpdateDualPopupsConfig,
   initialTab = 'articles',
 }) => {
-  // Allow full administrative access to all desk tabs for CMS users
-  const isEditorInChief = !currentUser || currentUser?.role === 'EDITOR_IN_CHIEF' || currentUser?.role === 'REPORTER' || true;
+  // Only the editor in chief has full CMS access.
+  // Reporters are limited to their own articles.
+  const isEditorInChief = currentUser?.role === 'EDITOR_IN_CHIEF';
+  const canManageArticle = (article: Article) =>
+    isEditorInChief || (!!currentUser?.reporterId && article.reporter?.id === currentUser.reporterId);
 
   // Tabs: 'articles' | 'write' | 'reporters' | 'categories' | 'media' | 'paper_layout' | 'events' | 'comments' | 'sheets_sync' | 'ads' | 'rss_collector'
   const [activeTab, setActiveTab] = useState<string>(initialTab);
@@ -936,6 +939,8 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
           {/* TAB 1: Article List & Approval Workflow */}
           {activeTab === 'articles' && (() => {
             const filteredDeskArticles = articles.filter(art => {
+              // Reporters must never see or manage other reporters' articles.
+              if (!canManageArticle(art)) return false;
               // 1. Keyword search (title, content, reporter, tags)
               if (deskSearchKeyword.trim()) {
                 const q = deskSearchKeyword.toLowerCase().trim();
@@ -1280,17 +1285,19 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                                     </button>
                                   )}
 
-                                  {/* Edit */}
-                                  <button
-                                    onClick={() => handleOpenWriter(art)}
-                                    title="수정"
-                                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg"
-                                  >
-                                    <Edit3 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {/* Edit: reporters can edit only their own articles */}
+                                  {canManageArticle(art) && (
+                                    <button
+                                      onClick={() => handleOpenWriter(art)}
+                                      title="수정"
+                                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
 
                                   {/* Delete Single Article */}
-                                  {(isEditorInChief || art.reporter.id === currentUser?.reporterId) && (
+                                  {canManageArticle(art) && (
                                     <button
                                       onClick={() => handleDeleteArticle(art.id)}
                                       title="삭제"
