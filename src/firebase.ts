@@ -10,6 +10,7 @@ import {
   getDoc, 
   setDoc, 
   deleteDoc, 
+  deleteField,
   writeBatch, 
   onSnapshot, 
   query, 
@@ -473,7 +474,22 @@ export async function fetchAdjacentArticlesFromFirestore(
  */
 export async function saveArticleToFirestore(article: Article): Promise<void> {
   const docRef = doc(db, 'articles', article.id);
-  await setDoc(docRef, articleToFirestoreDoc(article), { merge: true });
+  const data: any = articleToFirestoreDoc(article);
+
+  // Explicitly delete cleared newspaper-assignment fields.
+  // With merge:true, simply sending undefined would leave an old page assignment
+  // in Firestore and make different browsers show stale newspaper layouts.
+  if (article.pageNumber === undefined || article.pageNumber === null) {
+    data.pageNumber = deleteField();
+  }
+  if (article.sectionPage === undefined || article.sectionPage === null) {
+    data.sectionPage = deleteField();
+  }
+  if (!article.isTopHeadline) {
+    data.isTopHeadline = false;
+  }
+
+  await setDoc(docRef, data, { merge: true });
 }
 
 /**
