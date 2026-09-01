@@ -206,7 +206,28 @@ export default function App() {
 
   // Modals
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminIdInput, setAdminIdInput] = useState('');
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [adminLoginError, setAdminLoginError] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const handleAdminDeskRequest = () => {
+    setAdminIdInput('');
+    setAdminPasswordInput('');
+    setAdminLoginError('');
+    setShowAdminLogin(true);
+  };
+
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminIdInput.trim() === 'admin' && adminPasswordInput === 'soobakone1#') {
+      setShowAdminLogin(false);
+      setShowAdminModal(true);
+    } else {
+      setAdminLoginError('관리자 아이디 또는 비밀번호가 올바르지 않습니다.');
+    }
+  };
 
   // Navigation handlers
   const handleGoToMainNews = () => {
@@ -407,7 +428,7 @@ export default function App() {
             onUpdateArticles={setArticles}
             reporters={reporters}
             currentUser={currentUser}
-            onOpenAdminDesk={() => setShowAdminModal(true)}
+            onOpenAdminDesk={handleAdminDeskRequest}
             onOpenAuthModal={() => setShowAuthModal(true)}
             onLogout={() => setCurrentUser(null)}
             onGoToMainNews={handleGoToMainNews}
@@ -431,7 +452,7 @@ export default function App() {
             activeCategoryProp={activeCategory}
             onChangeCategory={setActiveCategory}
             currentUser={currentUser}
-            onOpenAdminDesk={() => setShowAdminModal(true)}
+            onOpenAdminDesk={handleAdminDeskRequest}
             onOpenAuthModal={() => setShowAuthModal(true)}
             onLogout={() => setCurrentUser(null)}
             adSettings={adSettings}
@@ -446,6 +467,23 @@ export default function App() {
       )}
       {dualPopupsConfig?.popup2 && (
         <LayerPopup config={dualPopupsConfig.popup2} currentScope={currentScope} />
+      )}
+
+      {/* Administrator CMS login gate */}
+      {showAdminLogin && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4">
+          <form onSubmit={handleAdminLogin} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-slate-900">⚙️ 관리자 CMS 데스크</h2>
+            <p className="mt-2 text-sm text-slate-500">관리자 인증 후 CMS 데스크에 접속합니다.</p>
+            <input value={adminIdInput} onChange={(e) => setAdminIdInput(e.target.value)} placeholder="관리자 아이디" autoFocus className="mt-5 w-full rounded-lg border p-3" />
+            <input value={adminPasswordInput} onChange={(e) => setAdminPasswordInput(e.target.value)} type="password" placeholder="비밀번호" className="mt-3 w-full rounded-lg border p-3" />
+            {adminLoginError && <p className="mt-3 text-sm text-red-600">{adminLoginError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => setShowAdminLogin(false)} className="flex-1 rounded-lg border px-4 py-3">취소</button>
+              <button type="submit" className="flex-1 rounded-lg bg-slate-900 px-4 py-3 font-semibold text-white">로그인</button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* Admin CMS Desk Modal */}
