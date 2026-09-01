@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Newspaper, 
   ChevronLeft, 
@@ -18,6 +18,7 @@ import {
   Bookmark
 } from 'lucide-react';
 import { Article, PaperPage } from '../types';
+import { subscribeToFirestoreArticles } from '../firebase';
 
 interface PaperEditionViewProps {
   articles?: Article[];
@@ -28,6 +29,23 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
   articles = [], 
   onSelectArticle 
 }) => {
+  // Use a direct Firestore snapshot for the paper edition so a fresh mobile
+  // session cannot receive a smaller parent/cache list than desktop.
+  const [paperSourceArticles, setPaperSourceArticles] = useState<Article[]>(articles);
+
+  useEffect(() => {
+    setPaperSourceArticles(articles);
+  }, [articles]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToFirestoreArticles(
+      (freshArticles) => setPaperSourceArticles(freshArticles),
+      (error) => console.warn('[PAPER EDITION] Firestore refresh failed', error),
+      5000
+    );
+    return unsubscribe;
+  }, []);
+
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [zoomLevel, setZoomLevel] = useState<'normal' | 'large'>('normal');
   const [showFullPaperModal, setShowFullPaperModal] = useState(false);
@@ -52,7 +70,7 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
   const dynamicPages: PaperPage[] = useMemo(() => {
     // Use exactly the same public article visibility rule on desktop and mobile.
     // Normalize legacy WordPress status values so one device cannot hide an assigned article.
-    const publishedArticles = articles.filter(a => {
+    const publishedArticles = paperSourceArticles.filter(a => {
       if (a.mainNewsEnabled === false) return false;
       const status = String(a.status || 'PUBLISHED').toUpperCase();
       return status === 'PUBLISHED' || status === 'PUBLISH';
@@ -95,7 +113,7 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
         articles: orderedArts,
       };
     });
-  }, [articles, todayFormatted]);
+  }, [paperSourceArticles, todayFormatted]);
 
   const currentPage = dynamicPages[currentPageIndex] || dynamicPages[0];
 
