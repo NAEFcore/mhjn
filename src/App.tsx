@@ -517,9 +517,12 @@ export default function App() {
             setCurrentUser(user);
             setShowAdminModal(true);
           }}
-          onRegisterReporter={(newRep, newAuth) => {
-            setReporters([newRep, ...reporters]);
-            setCurrentUser(newAuth);
+          reporters={reporters}
+          onRegisterReporter={(newRep, password) => {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('kcj_reporter_password_' + newRep.id, password);
+            }
+            setReporters(prev => [newRep, ...prev]);
           }}
         />
       )}
