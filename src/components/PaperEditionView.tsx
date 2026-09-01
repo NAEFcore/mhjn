@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Newspaper, 
   ChevronLeft, 
@@ -18,6 +18,7 @@ import {
   Bookmark
 } from 'lucide-react';
 import { Article, PaperPage } from '../types';
+import { subscribeToFirestoreArticles } from '../firebase';
 
 interface PaperEditionViewProps {
   articles?: Article[];
@@ -29,6 +30,23 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
   onSelectArticle 
 }) => {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  // Paper edition uses the same 80-record Firestore window as App.
+  // This only fixes a fresh mobile session receiving an incomplete parent list;
+  // it does NOT load the entire collection, so stale old page assignments cannot reappear.
+  const [paperArticles, setPaperArticles] = useState<Article[]>(articles);
+
+  useEffect(() => {
+    setPaperArticles(articles);
+  }, [articles]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToFirestoreArticles(
+      (freshArticles) => setPaperArticles(Array.isArray(freshArticles) ? freshArticles : []),
+      (error) => console.warn('[PAPER EDITION] article sync failed', error),
+      80
+    );
+    return unsubscribe;
+  }, []);
   const [zoomLevel, setZoomLevel] = useState<'normal' | 'large'>('normal');
   const [showFullPaperModal, setShowFullPaperModal] = useState(false);
   const [pdfHelpOpen, setPdfHelpOpen] = useState(false);
@@ -52,7 +70,7 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
   const dynamicPages: PaperPage[] = useMemo(() => {
     // Use exactly the same public article visibility rule on desktop and mobile.
     // Normalize legacy WordPress status values so one device cannot hide an assigned article.
-    const publishedArticles = articles.filter(a => {
+    const publishedArticles = paperArticles.filter(a => {
       if (a.mainNewsEnabled === false) return false;
       const status = String(a.status || 'PUBLISHED').toUpperCase();
       return status === 'PUBLISHED' || status === 'PUBLISH';
@@ -95,7 +113,7 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
         articles: orderedArts,
       };
     });
-  }, [articles, todayFormatted]);
+  }, [paperArticles, todayFormatted]);
 
   const currentPage = dynamicPages[currentPageIndex] || dynamicPages[0];
 
