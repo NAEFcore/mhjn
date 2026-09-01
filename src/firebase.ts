@@ -517,7 +517,19 @@ export async function saveArticlesBatchToFirestore(
 
     chunk.forEach(art => {
       const docRef = doc(db, 'articles', art.id);
-      const data = articleToFirestoreDoc(art);
+      const data: any = articleToFirestoreDoc(art);
+
+      // Batch saves must also remove cleared newspaper fields.
+      if (art.pageNumber === undefined || art.pageNumber === null) {
+        data.pageNumber = deleteField();
+      }
+      if (art.sectionPage === undefined || art.sectionPage === null) {
+        data.sectionPage = deleteField();
+      }
+      if (!art.isTopHeadline) {
+        data.isTopHeadline = false;
+      }
+
       batch.set(docRef, data, { merge: true });
     });
 
