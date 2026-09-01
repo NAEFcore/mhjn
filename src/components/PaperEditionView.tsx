@@ -50,7 +50,13 @@ export const PaperEditionView: React.FC<PaperEditionViewProps> = ({
 
   // Dynamic Page Generation based on Admin Page Assignments
   const dynamicPages: PaperPage[] = useMemo(() => {
-    const publishedArticles = articles.filter(a => !a.status || a.status === 'PUBLISHED');
+    // Use exactly the same public article visibility rule on desktop and mobile.
+    // Normalize legacy WordPress status values so one device cannot hide an assigned article.
+    const publishedArticles = articles.filter(a => {
+      if (a.mainNewsEnabled === false) return false;
+      const status = String(a.status || 'PUBLISHED').toUpperCase();
+      return status === 'PUBLISHED' || status === 'PUBLISH';
+    });
 
     const PAGE_DEFS = [
       { pageNumber: 1, sectionName: '종합 1면 (헤드라인)', categories: ['culture_art', 'heritage', 'k_culture'] },
