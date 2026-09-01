@@ -290,13 +290,11 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
   };
 
   // Filtered Articles Logic
+  // Public news pages must NEVER show drafts, pending-review or rejected articles.
+  // Reporter/editor private review is handled only inside the CMS desk.
   const visibleArticles = articles.filter((art) => {
-    // Exclude articles configured solely for Sub-News
     if (art.mainNewsEnabled === false) return false;
-    if (!art.status || art.status === 'PUBLISHED') return true;
-    if (currentUser?.role === 'EDITOR_IN_CHIEF') return true;
-    if (currentUser?.reporterId && art.reporter.id === currentUser.reporterId) return true;
-    return false;
+    return !art.status || art.status === 'PUBLISHED';
   });
 
   const filteredArticles = visibleArticles.filter((art) => {
