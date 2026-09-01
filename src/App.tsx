@@ -30,6 +30,7 @@ import {
 import { 
   subscribeToFirestoreArticles, 
   deleteArticleFromFirestore,
+  saveArticleToFirestore,
   saveDualPopupsConfigToFirestore,
   fetchDualPopupsConfigFromFirestore,
   parseDateSafely
@@ -136,6 +137,28 @@ export default function App() {
     setArticlesState((prev) => {
       const next = typeof newArticles === 'function' ? newArticles(prev) : newArticles;
       savePersistedArticles(next);
+
+      // Keep administrator newspaper page assignments identical in every browser.
+      // Only sync articles whose page assignment/headline flag changed, avoiding bulk writes.
+      const previousById = new Map(prev.map(article => [article.id, article]));
+      const changedAssignments = next.filter(article => {
+        const previous = previousById.get(article.id);
+        return previous && (
+          previous.pageNumber !== article.pageNumber ||
+          previous.isTopHeadline !== article.isTopHeadline
+        );
+      });
+
+      if (changedAssignments.length > 0) {
+        Promise.all(
+          changedAssignments.map(article =>
+            saveArticleToFirestore(article).catch(err =>
+              console.warn('Paper edition Firestore sync error:', err)
+            )
+          )
+        ).catch(() => {});
+      }
+
       return next;
     });
   };
