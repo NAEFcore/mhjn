@@ -497,6 +497,11 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
 
   // Submit Article (Save Draft / Submit for Review / Publish by Editor)
   const handleSaveArticle = (targetStatus: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED') => {
+    // Security rule: reporters can never publish directly, even if a UI event
+    // accidentally sends PUBLISHED. Only the editor in chief may publish.
+    if (!isEditorInChief && targetStatus === 'PUBLISHED') {
+      targetStatus = 'PENDING_REVIEW';
+    }
     if (!formTitle.trim() || !formContent.trim()) {
       alert('기사 제목과 본문을 입력해주세요.');
       return;
