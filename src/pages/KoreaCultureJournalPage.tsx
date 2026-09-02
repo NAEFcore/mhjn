@@ -348,7 +348,8 @@ export const KoreaCultureJournalPage: React.FC<KoreaCultureJournalPageProps> = (
       const result = await fetchMoreArticlesFromFirestore({
         category: !isAll ? activeCategory : undefined,
         lastDocSnapshot: prevCursorDoc,
-        limitCount: 80,
+        // Match the smaller public startup page to keep Firestore reads bounded.
+        limitCount: 40,
       });
 
       if (result.lastDocSnapshot) {
