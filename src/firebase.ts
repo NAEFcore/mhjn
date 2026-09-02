@@ -356,9 +356,11 @@ export function parseDateSafely(dateVal?: any): number {
 export async function fetchArticlesFromFirestore(limitCount: number = 80): Promise<Article[]> {
   try {
     const articlesCol = collection(db, 'articles');
-    // Newspaper assignments may exist on older articles outside the latest 80.
-  // Use the full collection so every explicit page assignment can be cleared and reflected consistently.
-  const q = query(articlesCol, orderBy('publishedAt', 'desc'));
+    // Public startup must NEVER scan the whole collection. With ~2,000 imported
+    // WordPress articles, an unbounded getDocs() charges one read per document
+    // on every fresh browser/session. Read only the requested page.
+    const safeLimit = Math.max(1, Math.min(Number(limitCount) || 40, 100));
+    const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(safeLimit));
     const snapshot = await getDocs(q);
     const articles = snapshot.docs.map(docSnap => firestoreDocToArticle(docSnap.data(), docSnap.id));
     return articles.sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
