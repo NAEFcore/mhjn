@@ -86,6 +86,8 @@ export default function App() {
           }
         }).catch(() => {});
 
+        // Keep the public realtime window small; older articles load on demand.
+        // This avoids charging every fresh visitor for a large 80-document listener.
         unsubscribe = subscribeToFirestoreArticles((incomingArticles) => {
           // Firestore is the single source of truth, including an intentionally empty result.
           // Never leave mobile/AMP showing stale or empty state because the callback returned zero items.
@@ -104,7 +106,7 @@ export default function App() {
           savePersistedArticles(firestoreArticles);
         }, (err) => {
           console.warn('Firestore subscription failed:', err?.message || err);
-        });
+        }, 40);
       } catch (err) {
         console.warn('Firestore initialization failed:', err);
       }
