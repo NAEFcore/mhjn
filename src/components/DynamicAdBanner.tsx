@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { fetchAdSettingsFromFirestore, saveAdSettingsToFirestore } from '../utils/adFirestore';
 
 interface DynamicAdBannerProps {
   adCode?: string;
@@ -6,8 +7,6 @@ interface DynamicAdBannerProps {
   slotLabel?: string;
   className?: string;
 }
-
-const AD_SETTINGS_API = '/api/ads';
 
 export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
   adCode,
@@ -18,21 +17,47 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [sharedAdCode, setSharedAdCode] = useState<string>('');
 
-  // Ad settings are site-wide, not browser-local. If the current browser has no
-  // local setting, load the saved site-wide setting so Edge/mobile see the same ad.
+  // Site-wide ad settings are read directly through the existing Firebase client SDK.
+  // This avoids the Vercel /api/ads REST endpoint, which cannot authenticate to
+  // Firestore with a Firebase API key alone.
   useEffect(() => {
     let cancelled = false;
     const loadSharedAd = async () => {
       try {
-        const response = await fetch(AD_SETTINGS_API, { cache: 'no-store' });
-        if (!response.ok) return;
-        const data = await response.json();
-        const code = data?.ads?.[slotName];
+        let settings = await fetchAdSettingsFromFirestore();
+
+        // One-time migration: if the shared document does not exist yet, seed it
+        // from the current browser's saved ad settings. This lets the existing
+        // Chrome configuration become the site-wide configuration for Edge/mobile.
+        if (!settings && typeof window !== 'undefined') {
+          try {
+            const local = window.localStorage.getItem('kculture_ad_settings_v1');
+            if (local) {
+              const parsed = JSON.parse(local);
+              if (parsed && typeof parsed === 'object') {
+                settings = {
+                  belowSubtitle: typeof parsed.belowSubtitle === 'string' ? parsed.belowSubtitle : '',
+                  inBody: typeof parsed.inBody === 'string' ? parsed.inBody : '',
+                  afterBody: typeof parsed.afterBody === 'string' ? parsed.afterBody : '',
+                  sidebarTop: typeof parsed.sidebarTop === 'string' ? parsed.sidebarTop : '',
+                  sidebarBottom: typeof parsed.sidebarBottom === 'string' ? parsed.sidebarBottom : '',
+                  radioSidebar: typeof parsed.radioSidebar === 'string' ? parsed.radioSidebar : '',
+                  belowSubtitleEnabled: parsed.belowSubtitleEnabled !== false,
+                };
+                await saveAdSettingsToFirestore(settings);
+              }
+            }
+          } catch {
+            // Keep the page usable if migration fails.
+          }
+        }
+
+        const code = settings?.[slotName];
         if (!cancelled && typeof code === 'string') {
           setSharedAdCode(code);
         }
       } catch {
-        // Keep local/default behavior if the shared settings endpoint is unavailable.
+        // Keep local/default behavior if shared Firestore settings are unavailable.
       }
     };
     loadSharedAd();
