@@ -1,2 +1,0 @@
-Backup checkpoint for article direct-URL investigation.
-Current source state is preserved in Git history before article URL changes.
