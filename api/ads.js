@@ -5,7 +5,7 @@ const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyBc2q_4Pbp6Ai9qobzfAJ
 const firestoreDocumentUrl = () =>
   `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/system_settings/ads?key=${encodeURIComponent(API_KEY)}`;
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   if (req.method === 'GET') {
