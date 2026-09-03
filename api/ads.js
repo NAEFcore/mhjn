@@ -1,11 +1,11 @@
 const PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'responsible-rock-7t3g1';
 const DATABASE_ID = process.env.VITE_FIREBASE_DATABASE_ID || 'ai-studio-iatpc-ffb9e31b-129a-42aa-953b-b8ceceaf87b0';
-const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyBc2q_4Pbp6Ai9qobzfAJQJOVHIRxg_IHU';
+const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyBcq2_4Pbp6Ai9qobzfAJQJOVHIRxg_IHU';
 
 const firestoreDocumentUrl = () =>
   `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/system_settings/ads?key=${encodeURIComponent(API_KEY)}`;
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   if (req.method === 'GET') {
