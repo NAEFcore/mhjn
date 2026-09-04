@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { AdSettings } from '../types';
 
@@ -8,7 +8,7 @@ const ADS_DOCUMENT = 'ads';
 const adsDoc = () => doc(db, ADS_COLLECTION, ADS_DOCUMENT);
 
 export async function fetchAdSettingsFromFirestore(): Promise<AdSettings | null> {
-  const snapshot = await getDoc(adsDoc());
+  const snapshot = await getDocFromServer(adsDoc());
   if (!snapshot.exists()) return null;
 
   const data = snapshot.data() as Partial<AdSettings>;
@@ -22,8 +22,6 @@ export async function fetchAdSettingsFromFirestore(): Promise<AdSettings | null>
     belowSubtitleEnabled: data.belowSubtitleEnabled !== false,
   };
 
-  // An empty placeholder document must not override a browser that already
-  // contains the working advertisement setting. Treat it as not configured.
   const hasAdCode = [
     settings.belowSubtitle,
     settings.inBody,
