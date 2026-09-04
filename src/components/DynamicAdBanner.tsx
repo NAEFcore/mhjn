@@ -17,21 +17,20 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [sharedAdCode, setSharedAdCode] = useState<string | undefined>(adCode);
 
-  // Advertisement settings are shared directly through the existing Firebase client SDK.
-  // Article data is not touched.
+  // Advertisement settings are shared through Firebase. Article data is not touched.
   useEffect(() => {
-    if (adCode && adCode.trim()) {
-      setSharedAdCode(adCode);
-      return;
-    }
-
     let cancelled = false;
+
     const loadSharedAd = async () => {
       try {
+        // Always check the shared Firestore settings first, even when this browser
+        // already has an adCode in localStorage. This prevents browser-specific
+        // settings from overriding the shared setting.
         let settings = await fetchAdSettingsFromFirestore();
 
         // If the shared document does not exist yet, migrate the current browser's
-        // saved ad settings into Firestore so every browser can use the same settings.
+        // saved ad settings into Firestore so the existing Chrome configuration
+        // becomes the common setting for Edge/mobile as well.
         if (!settings && typeof window !== 'undefined') {
           try {
             const local = window.localStorage.getItem('kculture_ad_settings_v1');
@@ -55,11 +54,22 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
           }
         }
 
-        const code = settings?.[slotName];
-        if (!cancelled && typeof code === 'string' && code.trim()) {
-          setSharedAdCode(code);
+        const sharedCode = settings?.[slotName];
+        if (!cancelled) {
+          if (typeof sharedCode === 'string' && sharedCode.trim()) {
+            setSharedAdCode(sharedCode);
+          } else if (!settings && adCode && adCode.trim()) {
+            // Last-resort compatibility fallback only when no shared setting exists.
+            setSharedAdCode(adCode);
+          } else if (settings) {
+            setSharedAdCode(undefined);
+          }
         }
       } catch (err) {
+        // Preserve the existing browser ad if the shared service is temporarily unavailable.
+        if (!cancelled && adCode && adCode.trim()) {
+          setSharedAdCode(adCode);
+        }
         console.warn('Failed to load shared ad settings:', err);
       }
     };
