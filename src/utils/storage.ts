@@ -1,6 +1,7 @@
 // Persistent Storage Utility for articles, reporters, cultural events, auth user, ad settings, issue clusters, and RSS feeds
 import { Article, Reporter, CulturalEvent, AuthUser, AdSettings, IssueCluster, RssFeedSource, AutoCollectedItem, PopupConfig, DualPopupsConfig, McstRssItem } from '../types';
 import { INITIAL_ARTICLES, REPORTERS_DATA, CULTURAL_EVENTS, ISSUE_CLUSTERS } from '../data/mockNews';
+import { saveAdSettingsToFirestore } from './adFirestore';
 
 const STORAGE_KEYS = {
   ARTICLES_CURRENT: 'kculture_articles_v4_master',
@@ -173,11 +174,11 @@ export function loadPersistedAdSettings(): AdSettings {
 export function savePersistedAdSettings(settings: AdSettings): void {
   try {
     localStorage.setItem(STORAGE_KEYS.AD_SETTINGS, JSON.stringify(settings));
-    fetch('/api/ads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ads: settings }),
-    }).catch(() => {});
+    // Save the same settings to shared Firestore so Chrome, Edge, and mobile
+    // all use the same advertisement configuration.
+    saveAdSettingsToFirestore(settings).catch((error) => {
+      console.error('Failed to save shared ad settings:', error);
+    });
   } catch (e) {
     console.error('Failed to save ad settings:', e);
   }
@@ -285,7 +286,7 @@ export function loadPersistedIssueClusters(): IssueCluster[] {
       }
     }
   } catch (e) {
-    console.warn('Failed to load issue clusters from storage:', e);
+    console.warn('Failed to load issue clusters:', e);
   }
   return ISSUE_CLUSTERS;
 }
