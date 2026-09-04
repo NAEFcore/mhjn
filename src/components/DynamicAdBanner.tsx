@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface DynamicAdBannerProps {
   adCode?: string;
@@ -14,27 +14,55 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
   className = '',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [sharedAdCode, setSharedAdCode] = useState<string | undefined>(adCode);
+
+  // Advertisement settings are shared through the server API when a browser
+  // does not already have a local ad setting. Article data is not touched.
+  useEffect(() => {
+    if (adCode && adCode.trim()) {
+      setSharedAdCode(adCode);
+      return;
+    }
+
+    let cancelled = false;
+    fetch('/api/ads', { method: 'GET', cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Ad settings request failed: ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const code = data?.ads?.[slotName];
+        if (typeof code === 'string' && code.trim()) {
+          setSharedAdCode(code);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load shared ad settings:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adCode, slotName]);
 
   useEffect(() => {
-    if (!adCode || !adCode.trim() || !containerRef.current) return;
+    if (!sharedAdCode || !sharedAdCode.trim() || !containerRef.current) return;
 
     const container = containerRef.current;
     container.innerHTML = '';
 
-    // Create a temporary container to parse HTML and separate DOM elements and scripts
     const temp = document.createElement('div');
-    temp.innerHTML = adCode.trim();
+    temp.innerHTML = sharedAdCode.trim();
 
     const externalScripts: HTMLScriptElement[] = [];
     const inlineScripts: HTMLScriptElement[] = [];
 
-    // Clone all non-script nodes and gather script nodes
     Array.from(temp.childNodes).forEach((node) => {
       if (node.nodeName.toLowerCase() === 'script') {
         const oldScript = node as HTMLScriptElement;
         const newScript = document.createElement('script');
 
-        // Copy all attributes (src, async, crossOrigin, type, etc.)
         Array.from(oldScript.attributes).forEach((attr) => {
           newScript.setAttribute(attr.name, attr.value);
         });
@@ -50,18 +78,15 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
       }
     });
 
-    // 1. Append external scripts first
     externalScripts.forEach((script) => {
       container.appendChild(script);
     });
 
-    // 2. Append inline scripts next
     inlineScripts.forEach((script) => {
       container.appendChild(script);
     });
 
-    // 3. Fallback support for Google AdSense push trigger
-    if (adCode.includes('adsbygoogle')) {
+    if (sharedAdCode.includes('adsbygoogle')) {
       const triggerAdSense = () => {
         try {
           if (typeof window !== 'undefined') {
@@ -74,20 +99,18 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
         }
       };
 
-      // Attempt immediate push and delayed fallback
       triggerAdSense();
       const timer = setTimeout(triggerAdSense, 400);
       return () => clearTimeout(timer);
     }
-  }, [adCode, slotName]);
+  }, [sharedAdCode, slotName]);
 
-  // If no ad code is configured or empty, do NOT render anything and prevent layout shifts
-  if (!adCode || !adCode.trim()) {
+  if (!sharedAdCode || !sharedAdCode.trim()) {
     return null;
   }
 
   return (
-    <div 
+    <div
       className={`dynamic-ad-slot-wrapper my-4 w-full flex flex-col items-center justify-center overflow-hidden transition-all ${className}`}
       data-ad-slot={slotName}
     >
@@ -101,11 +124,10 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
           </span>
         )}
       </div>
-      <div 
-        ref={containerRef} 
+      <div
+        ref={containerRef}
         className="w-full flex items-center justify-center min-h-[50px] bg-white/60 rounded-xl border border-slate-200/80 p-2 overflow-x-auto text-center shadow-2xs"
       />
     </div>
   );
 };
-
