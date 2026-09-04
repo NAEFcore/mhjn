@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { fetchAdSettingsFromFirestore, saveAdSettingsToFirestore } from '../utils/adFirestore';
 
 interface DynamicAdBannerProps {
   adCode?: string;
@@ -16,8 +17,8 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [sharedAdCode, setSharedAdCode] = useState<string | undefined>(adCode);
 
-  // Advertisement settings are shared through the server API when a browser
-  // does not already have a local ad setting. Article data is not touched.
+  // Advertisement settings are shared directly through the existing Firebase client SDK.
+  // Article data is not touched.
   useEffect(() => {
     if (adCode && adCode.trim()) {
       setSharedAdCode(adCode);
@@ -25,21 +26,45 @@ export const DynamicAdBanner: React.FC<DynamicAdBannerProps> = ({
     }
 
     let cancelled = false;
-    fetch('/api/ads', { method: 'GET', cache: 'no-store' })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Ad settings request failed: ${response.status}`);
-        return response.json();
-      })
-      .then((data) => {
-        if (cancelled) return;
-        const code = data?.ads?.[slotName];
-        if (typeof code === 'string' && code.trim()) {
+    const loadSharedAd = async () => {
+      try {
+        let settings = await fetchAdSettingsFromFirestore();
+
+        // If the shared document does not exist yet, migrate the current browser's
+        // saved ad settings into Firestore so every browser can use the same settings.
+        if (!settings && typeof window !== 'undefined') {
+          try {
+            const local = window.localStorage.getItem('kculture_ad_settings_v1');
+            if (local) {
+              const parsed = JSON.parse(local);
+              if (parsed && typeof parsed === 'object') {
+                settings = {
+                  belowSubtitle: typeof parsed.belowSubtitle === 'string' ? parsed.belowSubtitle : '',
+                  inBody: typeof parsed.inBody === 'string' ? parsed.inBody : '',
+                  afterBody: typeof parsed.afterBody === 'string' ? parsed.afterBody : '',
+                  sidebarTop: typeof parsed.sidebarTop === 'string' ? parsed.sidebarTop : '',
+                  sidebarBottom: typeof parsed.sidebarBottom === 'string' ? parsed.sidebarBottom : '',
+                  radioSidebar: typeof parsed.radioSidebar === 'string' ? parsed.radioSidebar : '',
+                  belowSubtitleEnabled: parsed.belowSubtitleEnabled !== false,
+                };
+                await saveAdSettingsToFirestore(settings);
+              }
+            }
+          } catch {
+            // Keep the page usable if migration fails.
+          }
+        }
+
+        const code = settings?.[slotName];
+        if (!cancelled && typeof code === 'string' && code.trim()) {
           setSharedAdCode(code);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.warn('Failed to load shared ad settings:', err);
-      });
+      }
+    };
+
+    loadSharedAd();
 
     return () => {
       cancelled = true;
