@@ -12,7 +12,7 @@ export async function fetchAdSettingsFromFirestore(): Promise<AdSettings | null>
   if (!snapshot.exists()) return null;
 
   const data = snapshot.data() as Partial<AdSettings>;
-  return {
+  const settings: AdSettings = {
     belowSubtitle: typeof data.belowSubtitle === 'string' ? data.belowSubtitle : '',
     inBody: typeof data.inBody === 'string' ? data.inBody : '',
     afterBody: typeof data.afterBody === 'string' ? data.afterBody : '',
@@ -21,6 +21,19 @@ export async function fetchAdSettingsFromFirestore(): Promise<AdSettings | null>
     radioSidebar: typeof data.radioSidebar === 'string' ? data.radioSidebar : '',
     belowSubtitleEnabled: data.belowSubtitleEnabled !== false,
   };
+
+  // An empty placeholder document must not override a browser that already
+  // contains the working advertisement setting. Treat it as not configured.
+  const hasAdCode = [
+    settings.belowSubtitle,
+    settings.inBody,
+    settings.afterBody,
+    settings.sidebarTop,
+    settings.sidebarBottom,
+    settings.radioSidebar,
+  ].some((value) => typeof value === 'string' && value.trim().length > 0);
+
+  return hasAdCode ? settings : null;
 }
 
 export async function saveAdSettingsToFirestore(settings: AdSettings): Promise<void> {
