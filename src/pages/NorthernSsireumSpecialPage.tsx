@@ -13,8 +13,6 @@ const SPECIAL_REPORT_LINKS: string[] = [
   // 1차 보도 링크를 여기에 한 줄씩 붙여 넣으세요.
 ];
 
-const ARTICLE_BASE_URL = '/article/';
-
 function getArticleId(url: string) {
   const match = url.match(/\/article\/([^/?#]+)/);
   return match?.[1] ?? '';
@@ -51,9 +49,7 @@ export function NorthernSsireumSpecialPage() {
   }, [articles]);
 
   const goHome = () => {
-    window.history.pushState(null, '', '/');
-    window.dispatchEvent(new PopStateEvent('popstate'));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.location.assign('/');
   };
 
   return (
@@ -77,7 +73,14 @@ export function NorthernSsireumSpecialPage() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 lg:px-8 lg:py-12">
         <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-          <div className="border-b border-slate-100 bg-white px-5 py-7 sm:px-8">
+          <div className="relative border-b border-slate-100 bg-white px-5 py-7 pr-32 sm:px-8 sm:pr-44">
+            <div className="absolute right-5 top-5 w-24 sm:right-8 sm:top-7 sm:w-32">
+              <img
+                src="/assets/unesco-ich-day-2026.png"
+                alt="In support of the International Day of Intangible Cultural Heritage"
+                className="h-auto w-full object-contain"
+              />
+            </div>
             <div className="mb-6 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-[#1769aa]">
               <Globe2 className="h-4 w-4" />
               International Intangible Cultural Heritage Day 2026
@@ -92,12 +95,7 @@ export function NorthernSsireumSpecialPage() {
           </div>
 
           <div className="bg-slate-50 px-5 py-6 sm:px-8">
-            <img
-              src="/assets/unesco-ich-day-2026.png"
-              alt="In support of the International Day of Intangible Cultural Heritage"
-              className="mx-auto w-full max-w-3xl object-contain"
-            />
-            <p className="mx-auto mt-4 max-w-3xl text-center text-xs leading-6 text-slate-500">
+            <p className="mx-auto max-w-3xl text-center text-xs leading-6 text-slate-500">
               2026 국제 무형유산의 날(10월 17일) 관련 특별기획보도 페이지입니다. 이 페이지의 로고 사용은 해당 기념일과 직접 관련된 커뮤니케이션을 위한 것이며 UNESCO의 후원·승인을 의미하지 않습니다.
             </p>
           </div>
@@ -122,7 +120,7 @@ export function NorthernSsireumSpecialPage() {
               {reports.map(({ url, article }, index) => (
                 <a
                   key={`${url}-${index}`}
-                  href={url.startsWith('/') ? url : url}
+                  href={url}
                   className="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-4">
