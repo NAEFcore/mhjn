@@ -83,9 +83,9 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
     const baseUrl = window.location.origin;
     const canonicalUrl = `${baseUrl}/article/${encodeURIComponent(article.id)}`;
     const seoTitle = `${article.title} - 한국문화저널`;
-    const seoDescription = (article.summary || article.subtitle || article.content || '').replace(/\\s+/g, ' ').trim().slice(0, 160);
+    const seoDescription = (article.summary || article.subtitle || article.content || '').replace(/\s+/g, ' ').trim().slice(0, 160);
     const imageUrl = article.imageUrl || '';
-    const publishedAt = article.publishedAt || article.createdAt || new Date().toISOString();
+    const publishedAt = article.publishedAt || new Date().toISOString();
 
     document.title = seoTitle;
 
