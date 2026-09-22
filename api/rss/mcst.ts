@@ -22,10 +22,16 @@ function stripHtml(value: string): string {
 }
 
 function getTag(block: string, tag: string): string {
-  const cdata = new RegExp('<' + tag + '(?:\\s[^>]*)?>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*<\\/' + tag + '>', 'i').exec(block);
+  const cdata = new RegExp(
+    '<' + tag + '(?:\\s[^>]*)?>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*</' + tag + '>',
+    'i'
+  ).exec(block);
   if (cdata) return cdata[1].trim();
 
-  const plain = new RegExp('<' + tag + '(?:\\s[^>]*)?>\\s*([\\s\\S]*?)\\s*<\\/' + tag + '>', 'i').exec(block);
+  const plain = new RegExp(
+    '<' + tag + '(?:\\s[^>]*)?>\\s*([\\s\\S]*?)\\s*</' + tag + '>',
+    'i'
+  ).exec(block);
   return plain ? decodeXml(plain[1]) : '';
 }
 
@@ -59,26 +65,29 @@ export default async function handler(req: any, res: any) {
     }
 
     const xml = await response.text();
-    const itemBlocks = xml.match(/<item(?:\\s[^>]*)?>[\\s\\S]*?<\\/item>/gi) || [];
+    const itemBlocks = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
 
-    const items = itemBlocks.slice(0, 30).map((block, index) => {
-      const title = stripHtml(getTag(block, 'title'));
-      const link = stripHtml(getTag(block, 'link'));
-      const guid = stripHtml(getTag(block, 'guid')) || link;
-      const descriptionRaw = getTag(block, 'description');
-      const description = stripHtml(descriptionRaw);
-      const pubDate = stripHtml(getTag(block, 'pubDate'));
+    const items = itemBlocks
+      .slice(0, 30)
+      .map((block, index) => {
+        const title = stripHtml(getTag(block, 'title'));
+        const link = stripHtml(getTag(block, 'link'));
+        const guid = stripHtml(getTag(block, 'guid')) || link;
+        const descriptionRaw = getTag(block, 'description');
+        const description = stripHtml(descriptionRaw);
+        const pubDate = stripHtml(getTag(block, 'pubDate'));
 
-      return {
-        id: guid || `mcst-rss-${index}`,
-        title,
-        link,
-        description,
-        pubDate,
-        imageUrl: getImage(block, descriptionRaw),
-        source: '문화체육관광부',
-      };
-    }).filter((item) => item.title && item.link);
+        return {
+          id: guid || `mcst-rss-${index}`,
+          title,
+          link,
+          description,
+          pubDate,
+          imageUrl: getImage(block, descriptionRaw),
+          source: '문화체육관광부',
+        };
+      })
+      .filter((item) => item.title && item.link);
 
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
     res.status(200).json({ items, source: RSS_URL, fetchedAt: new Date().toISOString() });
