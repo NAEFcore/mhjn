@@ -75,6 +75,94 @@ export const ArticleDetailPage: React.FC<ArticleDetailPageProps> = ({
 }) => {
   const isEn = lang === 'en';
 
+  // SEO metadata for each individual article URL.
+  // The app is an SPA, so update the document head when Google/browser renders /article/:id.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const baseUrl = window.location.origin;
+    const canonicalUrl = `${baseUrl}/article/${encodeURIComponent(article.id)}`;
+    const seoTitle = `${article.title} - 한국문화저널`;
+    const seoDescription = (article.summary || article.subtitle || article.content || '').replace(/\\s+/g, ' ').trim().slice(0, 160);
+    const imageUrl = article.imageUrl || '';
+    const publishedAt = article.publishedAt || article.createdAt || new Date().toISOString();
+
+    document.title = seoTitle;
+
+    const setMeta = (selector: string, attribute: string, value: string) => {
+      let el = document.head.querySelector(selector) as HTMLMetaElement | null;
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attribute, value);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', value);
+    };
+
+    setMeta('meta[name="description"]', 'name', seoDescription);
+    setMeta('meta[name="robots"]', 'name', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
+    setMeta('meta[property="og:type"]', 'property', 'article');
+    setMeta('meta[property="og:url"]', 'property', canonicalUrl);
+    setMeta('meta[property="og:title"]', 'property', seoTitle);
+    setMeta('meta[property="og:description"]', 'property', seoDescription);
+    if (imageUrl) setMeta('meta[property="og:image"]', 'property', imageUrl);
+    setMeta('meta[property="twitter:card"]', 'property', 'summary_large_image');
+    setMeta('meta[property="twitter:url"]', 'property', canonicalUrl);
+    setMeta('meta[property="twitter:title"]', 'property', seoTitle);
+    setMeta('meta[property="twitter:description"]', 'property', seoDescription);
+    if (imageUrl) setMeta('meta[property="twitter:image"]', 'property', imageUrl);
+
+    let canonical = document.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = canonicalUrl;
+
+    const jsonLdId = 'kcj-article-jsonld';
+    let jsonLd = document.getElementById(jsonLdId) as HTMLScriptElement | null;
+    if (!jsonLd) {
+      jsonLd = document.createElement('script');
+      jsonLd.id = jsonLdId;
+      jsonLd.type = 'application/ld+json';
+      document.head.appendChild(jsonLd);
+    }
+    jsonLd.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'NewsArticle',
+      headline: article.title,
+      description: seoDescription,
+      url: canonicalUrl,
+      datePublished: publishedAt,
+      dateModified: article.updatedAt || publishedAt,
+      image: imageUrl ? [imageUrl] : undefined,
+      author: {
+        '@type': 'Person',
+        name: article.reporter?.name || '한국문화저널 편집국',
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: '한국문화저널',
+        url: baseUrl,
+      },
+      mainEntityOfPage: {
+        '@type': 'WebPage',
+        '@id': canonicalUrl,
+      },
+      inLanguage: 'ko-KR',
+    });
+
+    return () => {
+      document.title = '한국문화저널 (Korea Culture Journal) - 문화·예술·전통유산 전문 정론지';
+      const defaultCanonical = document.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      if (defaultCanonical) defaultCanonical.href = `${baseUrl}/`;
+      const defaultDescription = '대한민국 대표 문화·예술·헤리티지 정론지 한국문화저널. 국보·보물 문화재 팩트체크, 미술 전시 비평, 무형유산 전승자 심층 인터뷰, 지면 신문 및 최신 문화 속보 제공.';
+      setMeta('meta[name="description"]', 'name', defaultDescription);
+      document.getElementById(jsonLdId)?.remove();
+    };
+  }, [article.id, article.title, article.summary, article.subtitle, article.content, article.imageUrl, article.publishedAt, article.updatedAt, article.createdAt, article.reporter?.name]);
+
   const handleNavigateToRadio = () => {
     if (onGoToRadio) {
       onGoToRadio(article.id, lang);
