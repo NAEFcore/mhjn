@@ -3,7 +3,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 
 const FIREBASE_CONFIG = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || 'AIzaSyBc2q_4Pbp6Ai9qobzfAJQJOVHIRxg1',
+  apiKey: process.env.VITE_FIREBASE_API_KEY || 'AIzaSyBc2q_4Pbp6Ai9qobzfAJQJOVHIRxg_IHU',
   authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'responsible-rock-7t3g1.firebaseapp.com',
   projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'responsible-rock-7t3g1',
   appId: process.env.VITE_FIREBASE_APP_ID || '1:1075971069890:web:be3034d6da225ae56fe85b',
