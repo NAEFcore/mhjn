@@ -1,4 +1,3 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 
@@ -45,7 +44,7 @@ function toDateOnly(value: unknown): string | null {
     : null;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
     res.status(405).setHeader('Allow', 'GET');
     return res.send('Method Not Allowed');
