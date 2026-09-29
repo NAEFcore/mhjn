@@ -595,7 +595,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
           summaryEn: formSummaryEn || (formContentEn ? formContentEn.slice(0, 100) : undefined),
           contentEn: formContentEn || undefined,
           reporter: currentReporter,
-          publishedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+          publishedAt: new Date().toISOString(),
           views: 0,
           shares: 0,
           likes: 0,
