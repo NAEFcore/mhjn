@@ -167,6 +167,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
 
   // Editing state for an existing article or new article
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [isSavingArticle, setIsSavingArticle] = useState(false);
 
   // Article Form State (Korean & English)
   const [formTitle, setFormTitle] = useState('');
@@ -496,7 +497,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
   };
 
   // Submit Article (Save Draft / Submit for Review / Publish by Editor)
-  const handleSaveArticle = (targetStatus: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED') => {
+  const handleSaveArticle = async (targetStatus: 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED') => {
     // Security rule: reporters can never publish directly, even if a UI event
     // accidentally sends PUBLISHED. Only the editor in chief may publish.
     if (!isEditorInChief && targetStatus === 'PUBLISHED') {
@@ -512,117 +513,126 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
       return;
     }
 
-    const currentReporter = reporters.find(r => r.id === currentUser?.reporterId) || reporters[0] || {
-      id: 'rep-default',
-      name: currentUser?.name || '편집국 기자',
-      title: '취재기자',
-      department: currentUser?.department || '문화부',
-      email: currentUser?.email || 'reporter@kculturejournal.com',
-      avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-      bio: '한국문화저널 데스크 취재기자',
-      subscriberCount: 120,
-      cheerCount: 45,
-      status: 'ACTIVE',
-    };
+    if (isSavingArticle) return;
+    setIsSavingArticle(true);
 
-    const parsedTags = formTags.split(',').map(t => t.trim()).filter(Boolean);
-
-    if (editingArticle) {
-      // Update existing
-      let updatedTargetArticle: Article | null = null;
-      const updated = articles.map(art => {
-        if (art.id === editingArticle.id) {
-          const canonical = formMainNewsEnabled ? `https://kculturejournal.com/article/${art.id}` : `https://kculturejournal.com/sub-news/article/${art.id}`;
-          const modified: Article = {
-            ...art,
-            title: formTitle,
-            subtitle: formSubtitle,
-            category: formCategory,
-            summary: formSummary,
-            content: formContent,
-            titleEn: formTitleEn || undefined,
-            subtitleEn: formSubtitleEn || undefined,
-            summaryEn: formSummaryEn || undefined,
-            contentEn: formContentEn || undefined,
-            imageUrl: formImageUrl || art.imageUrl,
-            imageCaption: formImageCaption,
-            tags: parsedTags.length > 0 ? parsedTags : art.tags,
-            badge: formBadge,
-            pageNumber: formPageNum,
-            isTopHeadline: formIsTop,
-            isBreaking: formIsBreaking,
-            mainNewsEnabled: formMainNewsEnabled,
-            subNewsEnabled: formSubNewsEnabled,
-            subNewsCategory: formSubNewsCategory,
-            canonicalUrl: canonical,
-            status: targetStatus,
-            requiresEditorApproval: !isEditorInChief || targetStatus === 'PENDING_REVIEW',
-            updatedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
-          };
-          updatedTargetArticle = modified;
-          return modified;
-        }
-        return art;
-      });
-      if (updatedTargetArticle) {
-        saveArticleToFirestore(updatedTargetArticle).catch(err => {
-          console.error('Failed to save updated article to Firestore:', err);
-        });
-      }
-      onUpdateArticles(updated);
-      alert('기사가 성공적으로 수정되었습니다.');
-    } else {
-      // Create new
-      const newId = `art-user-${Date.now()}`;
-      const canonical = formMainNewsEnabled ? `https://kculturejournal.com/article/${newId}` : `https://kculturejournal.com/sub-news/article/${newId}`;
-
-      const newArticle: Article = {
-        id: newId,
-        category: formCategory,
-        categoryLabel: formCategory === 'culture_art' ? '문화·예술' : formCategory === 'heritage' ? '전통·유산' : formCategory === 'k_culture' ? 'K-컬처' : '오피니언',
-        title: formTitle,
-        subtitle: formSubtitle,
-        summary: formSummary || formContent.slice(0, 100),
-        content: formContent,
-        titleEn: formTitleEn || undefined,
-        subtitleEn: formSubtitleEn || undefined,
-        summaryEn: formSummaryEn || (formContentEn ? formContentEn.slice(0, 100) : undefined),
-        contentEn: formContentEn || undefined,
-        reporter: currentReporter,
-        publishedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
-        views: 0,
-        shares: 0,
-        likes: 0,
-        reactions: { info: 0, exciting: 0, empathy: 0, analysis: 0, followup: 0 },
-        imageUrl: formImageUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=800',
-        imageCaption: formImageCaption,
-        tags: parsedTags.length > 0 ? parsedTags : ['문화', '한국문화저널'],
-        badge: formBadge,
-        pageNumber: formPageNum,
-        isTopHeadline: formIsTop,
-        isBreaking: formIsBreaking,
-        mainNewsEnabled: formMainNewsEnabled,
-        subNewsEnabled: formSubNewsEnabled,
-        subNewsCategory: formSubNewsCategory,
-        canonicalUrl: canonical,
-        status: targetStatus,
-        requiresEditorApproval: !isEditorInChief || targetStatus === 'PENDING_REVIEW',
-        commentsCount: 0,
+    try {
+      const currentReporter = reporters.find(r => r.id === currentUser?.reporterId) || reporters[0] || {
+        id: 'rep-default',
+        name: currentUser?.name || '편집국 기자',
+        title: '취재기자',
+        department: currentUser?.department || '문화부',
+        email: currentUser?.email || 'reporter@kculturejournal.com',
+        avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+        bio: '한국문화저널 데스크 취재기자',
+        subscriberCount: 120,
+        cheerCount: 45,
+        status: 'ACTIVE',
       };
 
-      saveArticleToFirestore(newArticle).catch(err => {
-        console.error('Failed to save new article to Firestore:', err);
-      });
+      const parsedTags = formTags.split(',').map(t => t.trim()).filter(Boolean);
 
-      let newArticlesList = [newArticle, ...articles];
-      if (formIsTop && isEditorInChief) {
-        newArticlesList = newArticlesList.map(a => a.id === newArticle.id ? a : { ...a, isTopHeadline: false });
+      if (editingArticle) {
+        // Update existing: confirm the Firestore write before changing local state.
+        let updatedTargetArticle: Article | null = null;
+        const updated = articles.map(art => {
+          if (art.id === editingArticle.id) {
+            const canonical = formMainNewsEnabled ? `https://kculturejournal.com/article/${art.id}` : `https://kculturejournal.com/sub-news/article/${art.id}`;
+            const modified: Article = {
+              ...art,
+              title: formTitle,
+              subtitle: formSubtitle,
+              category: formCategory,
+              summary: formSummary,
+              content: formContent,
+              titleEn: formTitleEn || undefined,
+              subtitleEn: formSubtitleEn || undefined,
+              summaryEn: formSummaryEn || undefined,
+              contentEn: formContentEn || undefined,
+              imageUrl: formImageUrl || art.imageUrl,
+              imageCaption: formImageCaption,
+              tags: parsedTags.length > 0 ? parsedTags : art.tags,
+              badge: formBadge,
+              pageNumber: formPageNum,
+              isTopHeadline: formIsTop,
+              isBreaking: formIsBreaking,
+              mainNewsEnabled: formMainNewsEnabled,
+              subNewsEnabled: formSubNewsEnabled,
+              subNewsCategory: formSubNewsCategory,
+              canonicalUrl: canonical,
+              status: targetStatus,
+              requiresEditorApproval: !isEditorInChief || targetStatus === 'PENDING_REVIEW',
+              updatedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+            };
+            updatedTargetArticle = modified;
+            return modified;
+          }
+          return art;
+        });
+
+        if (!updatedTargetArticle) {
+          throw new Error('수정할 기사를 찾을 수 없습니다.');
+        }
+
+        await saveArticleToFirestore(updatedTargetArticle);
+        onUpdateArticles(updated);
+        alert('기사가 성공적으로 수정되었습니다.');
+      } else {
+        // Create new: do not add it to the UI until Firestore confirms the write.
+        const newId = `art-user-${Date.now()}`;
+        const canonical = formMainNewsEnabled ? `https://kculturejournal.com/article/${newId}` : `https://kculturejournal.com/sub-news/article/${newId}`;
+
+        const newArticle: Article = {
+          id: newId,
+          category: formCategory,
+          categoryLabel: formCategory === 'culture_art' ? '문화·예술' : formCategory === 'heritage' ? '전통·유산' : formCategory === 'k_culture' ? 'K-컬처' : '오피니언',
+          title: formTitle,
+          subtitle: formSubtitle,
+          summary: formSummary || formContent.slice(0, 100),
+          content: formContent,
+          titleEn: formTitleEn || undefined,
+          subtitleEn: formSubtitleEn || undefined,
+          summaryEn: formSummaryEn || (formContentEn ? formContentEn.slice(0, 100) : undefined),
+          contentEn: formContentEn || undefined,
+          reporter: currentReporter,
+          publishedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+          views: 0,
+          shares: 0,
+          likes: 0,
+          reactions: { info: 0, exciting: 0, empathy: 0, analysis: 0, followup: 0 },
+          imageUrl: formImageUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=800',
+          imageCaption: formImageCaption,
+          tags: parsedTags.length > 0 ? parsedTags : ['문화', '한국문화저널'],
+          badge: formBadge,
+          pageNumber: formPageNum,
+          isTopHeadline: formIsTop,
+          isBreaking: formIsBreaking,
+          mainNewsEnabled: formMainNewsEnabled,
+          subNewsEnabled: formSubNewsEnabled,
+          subNewsCategory: formSubNewsCategory,
+          canonicalUrl: canonical,
+          status: targetStatus,
+          requiresEditorApproval: !isEditorInChief || targetStatus === 'PENDING_REVIEW',
+          commentsCount: 0,
+        };
+
+        await saveArticleToFirestore(newArticle);
+
+        let newArticlesList = [newArticle, ...articles];
+        if (formIsTop && isEditorInChief) {
+          newArticlesList = newArticlesList.map(a => a.id === newArticle.id ? a : { ...a, isTopHeadline: false });
+        }
+        onUpdateArticles(newArticlesList);
+        alert(targetStatus === 'PUBLISHED' ? '기사가 지면에 정식 발행되었습니다.' : '기사가 송고되었습니다.');
       }
-      onUpdateArticles(newArticlesList);
-      alert(targetStatus === 'PUBLISHED' ? '기사가 지면에 정식 발행되었습니다.' : '기사가 송고되었습니다.');
-    }
 
-    setActiveTab('articles');
+      setActiveTab('articles');
+    } catch (err: any) {
+      console.error('Article save failed:', err);
+      alert(`기사 저장에 실패했습니다. 서버에 저장되지 않았으므로 기존 기사는 그대로 유지됩니다.\n\n${err?.message || '알 수 없는 오류'}`);
+    } finally {
+      setIsSavingArticle(false);
+    }
   };
 
   // Approve Article (Editor in chief only)
@@ -1691,15 +1701,17 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                       <>
                         <button
                           type="button"
-                          onClick={() => handleSaveArticle('PUBLISHED')}
+                          onClick={() => void handleSaveArticle('PUBLISHED')}
+                          disabled={isSavingArticle}
                           className="w-full py-3 bg-[#1b2a47] hover:bg-[#25375c] text-white font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5"
                         >
                           <Send className="w-4 h-4" />
-                          <span>지면에 즉시 정식 발행 (승인)</span>
+                          <span>{isSavingArticle ? '저장 중…' : '지면에 즉시 정식 발행 (승인)'}</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSaveArticle('DRAFT')}
+                          onClick={() => void handleSaveArticle('DRAFT')}
+                          disabled={isSavingArticle}
                           className="w-full py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold rounded-xl transition-all"
                         >
                           임시저장 (초안)
@@ -1708,11 +1720,12 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleSaveArticle('PENDING_REVIEW')}
+                        onClick={() => void handleSaveArticle('PENDING_REVIEW')}
+                        disabled={isSavingArticle}
                         className="w-full py-3 bg-[#1b2a47] hover:bg-[#25375c] text-white font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5"
                       >
                         <Send className="w-4 h-4 text-amber-300" />
-                        <span>편집국 데스크로 송고 (승인 요청)</span>
+                        <span>{isSavingArticle ? '저장 중…' : '편집국 데스크로 송고 (승인 요청)'}</span>
                       </button>
                     )}
                   </div>
