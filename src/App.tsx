@@ -28,13 +28,9 @@ import {
   savePersistedDualPopupsConfig
 } from './utils/storage';
 import { 
-  subscribeToFirestoreArticles, 
-  fetchArticlesFromFirestore,
-  deleteArticleFromFirestore,
   saveArticleToFirestore,
   saveDualPopupsConfigToFirestore,
   fetchDualPopupsConfigFromFirestore,
-  parseDateSafely
 } from './firebase';
 
 export type ViewMode = 'standard' | 'amp_mobile' | 'sub_news' | 'kcj_radio';
