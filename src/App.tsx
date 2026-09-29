@@ -8,7 +8,7 @@ import { KoreaCultureJournalPage } from './pages/KoreaCultureJournalPage';
 import { AmpMobilePage } from './pages/AmpMobilePage';
 import { SubNewsAppPage } from './pages/SubNewsAppPage';
 import { KcjRadioPage } from './pages/KcjRadioPage';
-import { Zap, Newspaper, Globe2, Radio } from 'lucide-react';
+import { Zap, Newspaper, Radio } from 'lucide-react';
 import { AuthUser, Reporter, Article, CulturalEvent, CategoryTab, AdSettings, PopupConfig, DualPopupsConfig, PopupScopeTarget } from './types';
 import { CATEGORY_TABS } from './data/mockNews';
 import { AdminDeskModal } from './components/AdminDeskModal';
