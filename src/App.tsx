@@ -29,6 +29,7 @@ import {
 } from './utils/storage';
 import { 
   subscribeToFirestoreArticles, 
+  fetchArticlesFromFirestore,
   deleteArticleFromFirestore,
   saveArticleToFirestore,
   saveDualPopupsConfigToFirestore,
@@ -87,8 +88,6 @@ export default function App() {
         }).catch(() => {});
 
         unsubscribe = subscribeToFirestoreArticles((incomingArticles) => {
-          // Firestore is the single source of truth, including an intentionally empty result.
-          // Never leave mobile/AMP showing stale or empty state because the callback returned zero items.
           const firestoreArticles = Array.isArray(incomingArticles) ? incomingArticles : [];
 
           console.log('[FINAL APP STATE]', {
@@ -99,11 +98,39 @@ export default function App() {
             firstPublishedAt: firestoreArticles[0]?.publishedAt,
           });
 
-          // Completely replace state with the current Firestore snapshot.
+          // A fresh browser must never become permanently blank because the realtime
+          // query returned an empty snapshot. Verify the collection directly first.
+          if (firestoreArticles.length === 0) {
+            fetchArticlesFromFirestore(80).then(fallbackArticles => {
+              if (fallbackArticles.length > 0) {
+                console.warn('[FIRESTORE FALLBACK] Realtime snapshot was empty; restored articles from direct query:', fallbackArticles.length);
+                setArticlesState(fallbackArticles.slice(0, 80));
+                savePersistedArticles(fallbackArticles.slice(0, 80));
+              } else {
+                setArticlesState([]);
+                savePersistedArticles([]);
+              }
+            }).catch(err => {
+              console.warn('[FIRESTORE FALLBACK] Direct article fetch failed:', err?.message || err);
+            });
+            return;
+          }
+
           setArticlesState(firestoreArticles);
           savePersistedArticles(firestoreArticles);
         }, (err) => {
           console.warn('Firestore subscription failed:', err?.message || err);
+          // Realtime listeners can fail independently of direct reads. Recover the
+          // public article list so Edge/incognito/mobile are not left blank.
+          fetchArticlesFromFirestore(80).then(fallbackArticles => {
+            if (fallbackArticles.length > 0) {
+              console.warn('[FIRESTORE FALLBACK] Subscription failed; restored articles from direct query:', fallbackArticles.length);
+              setArticlesState(fallbackArticles.slice(0, 80));
+              savePersistedArticles(fallbackArticles.slice(0, 80));
+            }
+          }).catch(fallbackErr => {
+            console.warn('[FIRESTORE FALLBACK] Direct article fetch also failed:', fallbackErr?.message || fallbackErr);
+          });
         });
       } catch (err) {
         console.warn('Firestore initialization failed:', err);
