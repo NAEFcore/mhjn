@@ -68,24 +68,78 @@ export default function App() {
     });
   };
 
-  // Load articles directly from Firestore once on startup
+  // Firestore Realtime Subscription & Auto-Seeding
   useEffect(() => {
-    fetchArticlesFromFirestore(80).then(firestoreArticles => {
-      setArticlesState(firestoreArticles.slice(0, 80));
-    }).catch(err => {
-      console.warn('Firestore article load failed:', err?.message || err);
-    });
+    let unsubscribe: (() => void) | undefined;
 
-    fetchDualPopupsConfigFromFirestore().then(popupsData => {
-      if (popupsData && (popupsData.popup1 || popupsData.popup2)) {
-        const merged = {
-          popup1: { ...loadPersistedDualPopupsConfig().popup1, ...(popupsData.popup1 || {}) },
-          popup2: { ...loadPersistedDualPopupsConfig().popup2, ...(popupsData.popup2 || {}) },
-        };
-        setDualPopupsConfigState(merged);
-        savePersistedDualPopupsConfig(merged);
+    const initFirestore = async () => {
+      try {
+        // 0. Fetch latest popups config from Firestore if available
+        fetchDualPopupsConfigFromFirestore().then(popupsData => {
+          if (popupsData && (popupsData.popup1 || popupsData.popup2)) {
+            const merged = {
+              popup1: { ...loadPersistedDualPopupsConfig().popup1, ...(popupsData.popup1 || {}) },
+              popup2: { ...loadPersistedDualPopupsConfig().popup2, ...(popupsData.popup2 || {}) },
+            };
+            setDualPopupsConfigState(merged);
+            savePersistedDualPopupsConfig(merged);
+          }
+        }).catch(() => {});
+
+        unsubscribe = subscribeToFirestoreArticles((incomingArticles) => {
+          const firestoreArticles = Array.isArray(incomingArticles) ? incomingArticles : [];
+
+          console.log('[FINAL APP STATE]', {
+            source: 'FIRESTORE_ARTICLES',
+            count: firestoreArticles.length,
+            firstId: firestoreArticles[0]?.id,
+            firstTitle: firestoreArticles[0]?.title,
+            firstPublishedAt: firestoreArticles[0]?.publishedAt,
+          });
+
+          // A fresh browser must never become permanently blank because the realtime
+          // query returned an empty snapshot. Verify the collection directly first.
+          if (firestoreArticles.length === 0) {
+            fetchArticlesFromFirestore(80).then(fallbackArticles => {
+              if (fallbackArticles.length > 0) {
+                console.warn('[FIRESTORE FALLBACK] Realtime snapshot was empty; restored articles from direct query:', fallbackArticles.length);
+                setArticlesState(fallbackArticles.slice(0, 80));
+              } else {
+                // Never erase the current article state because a transient Firestore
+                // read returned empty. A temporary empty/error must not make one
+                // browser, Incognito, Edge, or mobile show a blank newsroom.
+                console.warn('[FIRESTORE FALLBACK] No articles returned; keeping existing article state.');
+              }
+            }).catch(err => {
+              console.warn('[FIRESTORE FALLBACK] Direct article fetch failed; keeping existing article state:', err?.message || err);
+            });
+            return;
+          }
+
+          setArticlesState(firestoreArticles);
+        }, (err) => {
+          console.warn('Firestore subscription failed:', err?.message || err);
+          // Realtime listeners can fail independently of direct reads. Recover the
+          // public article list so Edge/incognito/mobile are not left blank.
+          fetchArticlesFromFirestore(80).then(fallbackArticles => {
+            if (fallbackArticles.length > 0) {
+              console.warn('[FIRESTORE FALLBACK] Subscription failed; restored articles from direct query:', fallbackArticles.length);
+              setArticlesState(fallbackArticles.slice(0, 80));
+            }
+          }).catch(fallbackErr => {
+            console.warn('[FIRESTORE FALLBACK] Direct article fetch also failed:', fallbackErr?.message || fallbackErr);
+          });
+        });
+      } catch (err) {
+        console.warn('Firestore initialization failed:', err);
       }
-    }).catch(() => {});
+    };
+
+    initFirestore();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Sync browser back/forward buttons with view modes
