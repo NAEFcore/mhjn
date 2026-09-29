@@ -15,7 +15,6 @@ import { AdminDeskModal } from './components/AdminDeskModal';
 import { ReporterAuthModal } from './components/ReporterAuthModal';
 import { LayerPopup } from './components/LayerPopup';
 import { 
-  savePersistedArticles,
   loadPersistedReporters,
   savePersistedReporters,
   loadPersistedEvents,
@@ -105,7 +104,6 @@ export default function App() {
               if (fallbackArticles.length > 0) {
                 console.warn('[FIRESTORE FALLBACK] Realtime snapshot was empty; restored articles from direct query:', fallbackArticles.length);
                 setArticlesState(fallbackArticles.slice(0, 80));
-                savePersistedArticles(fallbackArticles.slice(0, 80));
               } else {
                 // Never erase the current article state because a transient Firestore
                 // read returned empty. A temporary empty/error must not make one
@@ -119,7 +117,6 @@ export default function App() {
           }
 
           setArticlesState(firestoreArticles);
-          savePersistedArticles(firestoreArticles);
         }, (err) => {
           console.warn('Firestore subscription failed:', err?.message || err);
           // Realtime listeners can fail independently of direct reads. Recover the
@@ -128,7 +125,6 @@ export default function App() {
             if (fallbackArticles.length > 0) {
               console.warn('[FIRESTORE FALLBACK] Subscription failed; restored articles from direct query:', fallbackArticles.length);
               setArticlesState(fallbackArticles.slice(0, 80));
-              savePersistedArticles(fallbackArticles.slice(0, 80));
             }
           }).catch(fallbackErr => {
             console.warn('[FIRESTORE FALLBACK] Direct article fetch also failed:', fallbackErr?.message || fallbackErr);
@@ -168,8 +164,6 @@ export default function App() {
   const setArticles = (newArticles: Article[] | ((prev: Article[]) => Article[])) => {
     setArticlesState((prev) => {
       const next = typeof newArticles === 'function' ? newArticles(prev) : newArticles;
-      savePersistedArticles(next);
-
       // Keep administrator newspaper page assignments identical in every browser.
       // Only sync articles whose page assignment/headline flag changed, avoiding bulk writes.
       const previousById = new Map(prev.map(article => [article.id, article]));
