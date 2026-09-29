@@ -63,11 +63,12 @@ import {
   savePersistedIssueClusters
 } from '../utils/storage';
 import { RssAutoCollectorTab } from './RssAutoCollectorTab';
+import { saveArticle } from '../articleStore';
 import { McstRssCollectorTab } from './McstRssCollectorTab';
 import { PopupManagerTab } from './PopupManagerTab';
 import { WordPressImportTab } from './WordPressImportTab';
 import { 
-  saveArticleToFirestore, 
+  saveArticle, 
   deleteArticleFromFirestore, 
   saveArticlesBatchToFirestore, 
   parseDateSafely,
@@ -574,7 +575,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
           throw new Error('수정할 기사를 찾을 수 없습니다.');
         }
 
-        await saveArticleToFirestore(updatedTargetArticle);
+        await saveArticle(updatedTargetArticle);
         onUpdateArticles(updated);
         alert('기사가 성공적으로 수정되었습니다.');
       } else {
@@ -616,7 +617,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
           commentsCount: 0,
         };
 
-        await saveArticleToFirestore(newArticle);
+        await saveArticle(newArticle);
 
         let newArticlesList = [newArticle, ...articles];
         if (formIsTop && isEditorInChief) {
@@ -640,7 +641,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
     const target = articles.find(art => art.id === articleId);
     if (target) {
       const approved = { ...target, status: 'PUBLISHED' as const, publishedAt: '방금 전' };
-      saveArticleToFirestore(approved).catch(console.error);
+      saveArticle(approved).catch(console.error);
     }
     const updated = articles.map(art => {
       if (art.id === articleId) {
@@ -660,7 +661,7 @@ export const AdminDeskModal: React.FC<AdminDeskModalProps> = ({
     const target = articles.find(art => art.id === articleId);
     if (target) {
       const rejected = { ...target, status: 'REJECTED' as const, rejectionReason: reason };
-      saveArticleToFirestore(rejected).catch(console.error);
+      saveArticle(rejected).catch(console.error);
     }
     const updated = articles.map(art => {
       if (art.id === articleId) {
