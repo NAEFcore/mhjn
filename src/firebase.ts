@@ -601,7 +601,7 @@ export function subscribeToFirestoreArticles(
   limitCount: number = 80
 ): () => void {
   const articlesCol = collection(db, 'articles');
-  const q = query(articlesCol, limit(limitCount));
+  const q = query(articlesCol, orderBy('publishedAt', 'desc'), limit(limitCount));
   return onSnapshot(q, (snapshot) => {
     if (snapshot.empty) {
       lastVisibleFirestoreDoc = null;
