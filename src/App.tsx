@@ -107,11 +107,13 @@ export default function App() {
                 setArticlesState(fallbackArticles.slice(0, 80));
                 savePersistedArticles(fallbackArticles.slice(0, 80));
               } else {
-                setArticlesState([]);
-                savePersistedArticles([]);
+                // Never erase the current article state because a transient Firestore
+                // read returned empty. A temporary empty/error must not make one
+                // browser, Incognito, Edge, or mobile show a blank newsroom.
+                console.warn('[FIRESTORE FALLBACK] No articles returned; keeping existing article state.');
               }
             }).catch(err => {
-              console.warn('[FIRESTORE FALLBACK] Direct article fetch failed:', err?.message || err);
+              console.warn('[FIRESTORE FALLBACK] Direct article fetch failed; keeping existing article state:', err?.message || err);
             });
             return;
           }
