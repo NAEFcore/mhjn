@@ -68,7 +68,6 @@ import { McstRssCollectorTab } from './McstRssCollectorTab';
 import { PopupManagerTab } from './PopupManagerTab';
 import { WordPressImportTab } from './WordPressImportTab';
 import { 
-  saveArticle, 
   deleteArticleFromFirestore, 
   saveArticlesBatchToFirestore, 
   parseDateSafely,
