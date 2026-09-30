@@ -2,7 +2,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
   initializeFirestore,
-  memoryLocalCache,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection, 
   doc, 
   getDocs, 
@@ -55,7 +56,9 @@ export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getA
 let firestoreInstance: Firestore;
 try {
   firestoreInstance = initializeFirestore(app, {
-    localCache: memoryLocalCache()
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
   }, firestoreDatabaseId || undefined);
 } catch {
   try {
