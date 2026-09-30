@@ -357,26 +357,22 @@ export function parseDateSafely(dateVal?: any): number {
 export async function fetchArticlesFromFirestore(limitCount: number = 80): Promise<Article[]> {
   try {
     const articlesCol = collection(db, 'articles');
+    const q = query(
+      articlesCol,
+      orderBy('publishedAt', 'desc'),
+      limit(limitCount > 0 ? limitCount : 80)
+    );
 
-    // IMPORTANT: Do not use Firestore orderBy() for the recovery/initial load.
-    // Older imported/manual documents may have a missing or legacy publishedAt field.
-    // Firestore orderBy() silently excludes such documents, which can make a fresh
-    // browser appear to have no articles even though the collection contains them.
-    // Read the collection directly, sort safely in the client, then apply the UI limit.
-    // Prefer a server read so Incognito/mobile are not dependent on another browser's
-    // IndexedDB cache.
     let snapshot;
     try {
-      snapshot = await getDocsFromServer(articlesCol);
+      snapshot = await getDocsFromServer(q);
     } catch {
-      snapshot = await getDocs(articlesCol);
+      snapshot = await getDocs(q);
     }
 
-    const articles = snapshot.docs
+    return snapshot.docs
       .map(docSnap => firestoreDocToArticle(docSnap.data(), docSnap.id))
       .sort((a, b) => parseDateSafely(b.publishedAt) - parseDateSafely(a.publishedAt));
-
-    return limitCount > 0 ? articles.slice(0, limitCount) : articles;
   } catch (error: any) {
     console.warn('Firestore fetch failed:', error?.message || error);
     return [];
