@@ -4,6 +4,9 @@ import { INITIAL_ARTICLES, REPORTERS_DATA, CULTURAL_EVENTS, ISSUE_CLUSTERS } fro
 import { saveAdSettingsToFirestore } from './adFirestore';
 
 const STORAGE_KEYS = {
+  ARTICLES_CURRENT: 'kculture_articles_v4_master',
+  ARTICLES_LEGACY: 'kculture_articles_v3_secure',
+  ARTICLES_BACKUP: 'kculture_user_created_articles_backup',
   REPORTERS: 'kculture_reporters_v3_secure',
   EVENTS: 'kculture_events_v3_secure',
   AUTH_USER: 'kculture_auth_user_v3',
@@ -69,6 +72,81 @@ export const DEFAULT_DUAL_POPUPS_CONFIG: DualPopupsConfig = {
 };
 
 export const DEFAULT_POPUP_CONFIG: PopupConfig = DEFAULT_POPUP_CONFIG_1;
+
+// Load saved articles with smart fallback (Firestore is the Source of Truth)
+export function loadPersistedArticles(): Article[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.ARTICLES_CURRENT);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log('[LOCAL CACHE]', {
+          exists: true,
+          count: parsed.length,
+          firstId: parsed[0]?.id,
+          firstTitle: parsed[0]?.title,
+          firstPublishedAt: parsed[0]?.publishedAt,
+        });
+        console.log('[INITIAL DATA]', { usingInitialArticles: false, source: 'localStorage_temp_cache' });
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load articles cache from localStorage:', e);
+  }
+
+  console.log('[LOCAL CACHE]', { exists: false, count: 0 });
+  console.log('[INITIAL DATA]', {
+    usingInitialArticles: true,
+    source: 'INITIAL_ARTICLES',
+    count: INITIAL_ARTICLES.length,
+    firstId: INITIAL_ARTICLES[0]?.id,
+    firstTitle: INITIAL_ARTICLES[0]?.title,
+  });
+  return [];
+}
+
+// Helper to sanitize an article for lightweight localStorage cache (< 1KB per article)
+function sanitizeArticleForCache(art: Article): Article {
+  return {
+    ...art,
+    // Store only summary or first 300 characters of content to guarantee < 100KB total cache
+    content: art.summary ? art.summary : (art.content && art.content.length > 300 ? art.content.slice(0, 300) + '...' : (art.content || '')),
+    contentEn: art.contentEn && art.contentEn.length > 200 ? art.contentEn.slice(0, 200) + '...' : (art.contentEn || ''),
+  };
+}
+
+// Save articles safely in client-side cache with strict quota management (Firestore is Source of Truth)
+export function savePersistedArticles(articles: Article[]): void {
+  if (!Array.isArray(articles)) return;
+
+  // 1. Proactively purge old redundant legacy & backup keys to free browser quota
+  try {
+    localStorage.removeItem(STORAGE_KEYS.ARTICLES_LEGACY);
+    localStorage.removeItem(STORAGE_KEYS.ARTICLES_BACKUP);
+    localStorage.removeItem('kculture_articles_v2');
+    localStorage.removeItem('kculture_articles_v1');
+    localStorage.removeItem('kculture_articles_master');
+  } catch {}
+
+  // 2. Cache only the top 50 recent articles with truncated content to stay well under quota (e.g. ~50KB total)
+  try {
+    const cacheSlice = articles.slice(0, 50).map(sanitizeArticleForCache);
+    const jsonStr = JSON.stringify(cacheSlice);
+    localStorage.setItem(STORAGE_KEYS.ARTICLES_CURRENT, jsonStr);
+  } catch (e) {
+    // If quota is still somehow tight, reduce to 15 articles
+    try {
+      const minimalSlice = articles.slice(0, 15).map(sanitizeArticleForCache);
+      localStorage.setItem(STORAGE_KEYS.ARTICLES_CURRENT, JSON.stringify(minimalSlice));
+    } catch {
+      // In extreme cases, clear the local cache key entirely without interrupting execution
+      try {
+        localStorage.removeItem(STORAGE_KEYS.ARTICLES_CURRENT);
+      } catch {}
+    }
+  }
+}
 
 // Load saved ad settings
 export function loadPersistedAdSettings(): AdSettings {
